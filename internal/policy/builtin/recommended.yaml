@@ -45,6 +45,32 @@ rules:
       shell:
         pipe_to_shell: true
 
+  - id: secret-exfiltration-high
+    description: Reading a private key or cloud credential and sending it to the network
+    severity: critical
+    effect: deny
+    message: >-
+      Leash blocked likely credential exfiltration — a private key or cloud
+      credential is being read and routed to the network. If this is genuinely
+      intended, run it yourself.
+    match:
+      shell:
+        secret_exfil: high
+
+  # `any` also matches high-confidence exfil, but secret-exfiltration-high (deny)
+  # outranks this rule via deny-overrides — so keys/cloud-creds are denied while
+  # a .env read only asks.
+  - id: secret-exfiltration-env
+    description: Reading a secret or .env file and sending it to the network
+    severity: high
+    effect: ask
+    message: >-
+      A secret file is being read and sent to the network. Confirm this is
+      intended before allowing it.
+    match:
+      shell:
+        secret_exfil: any
+
   - id: git-force-push
     description: Force-push can irreversibly overwrite remote history
     severity: medium

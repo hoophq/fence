@@ -49,6 +49,7 @@ type ShellMatch struct {
 	ForcePush       bool     `yaml:"force_push,omitempty"`
 	HistoryRewrite  bool     `yaml:"history_rewrite,omitempty"`
 	PipeToShell     bool     `yaml:"pipe_to_shell,omitempty"`
+	SecretExfil     string   `yaml:"secret_exfil,omitempty"` // high|any
 	CommandIn       []string `yaml:"command_in,omitempty"`
 }
 
@@ -73,6 +74,13 @@ func (r *Rule) compile() error {
 		case "sensitive", "outside_workspace", "any":
 		default:
 			return fmt.Errorf("rule %q has invalid delete_target %q", r.ID, dt.DeleteTarget)
+		}
+	}
+	if sh := r.Match.Shell; sh != nil && sh.SecretExfil != "" {
+		switch sh.SecretExfil {
+		case "high", "any":
+		default:
+			return fmt.Errorf("rule %q has invalid secret_exfil %q", r.ID, sh.SecretExfil)
 		}
 	}
 	if r.Match.Regex != "" {

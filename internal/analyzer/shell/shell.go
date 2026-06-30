@@ -45,6 +45,31 @@ func (t DeleteTarget) String() string {
 	}
 }
 
+// SecretConfidence rates how likely a referenced path holds secret material.
+type SecretConfidence int
+
+const (
+	// SecretNone means no secret material was referenced.
+	SecretNone SecretConfidence = iota
+	// SecretEnv is a .env-style file: often holds secrets, but is also routinely
+	// read by legitimate tooling, so it warrants a prompt rather than a block.
+	SecretEnv
+	// SecretHigh is private-key or cloud-credential material; exfiltrating it is
+	// almost never legitimate.
+	SecretHigh
+)
+
+func (c SecretConfidence) String() string {
+	switch c {
+	case SecretEnv:
+		return "env"
+	case SecretHigh:
+		return "high"
+	default:
+		return "none"
+	}
+}
+
 // Analysis is the set of semantic facts extracted from a shell command. Rules
 // match against these facts rather than against raw text.
 type Analysis struct {
@@ -74,6 +99,13 @@ type Analysis struct {
 	// PipeToShellFromNet is true when a network fetch is piped straight into a
 	// shell or interpreter (curl ... | sh).
 	PipeToShellFromNet bool
+
+	// SecretRead is the highest-confidence secret reference seen in the command
+	// (e.g. a private key, cloud credential, or .env file being read).
+	SecretRead SecretConfidence
+	// NetEgress is true when the command routes data out to the network: a
+	// curl/wget upload, nc connecting out, or a bash /dev/tcp redirect.
+	NetEgress bool
 
 	// Raw is the original command text.
 	Raw string
@@ -123,6 +155,17 @@ func Analyze(command, cwd string) Analysis {
 	syntax.Walk(file, func(node syntax.Node) bool {
 		switch n := node.(type) {
 		case *syntax.CallExpr:
+			// Scan every word for secret references and raw /dev/tcp egress
+			// targets, independent of the command name.
+			for _, w := range n.Args {
+				txt, _ := wordToString(w)
+				if c := classifySecret(txt); c > a.SecretRead {
+					a.SecretRead = c
+				}
+				if isDevNet(txt) {
+					a.NetEgress = true
+				}
+			}
 			name, args := resolveCommand(n)
 			if name == "" {
 				return true
@@ -132,6 +175,16 @@ func Analyze(command, cwd string) Analysis {
 				a.Commands = append(a.Commands, name)
 			}
 			a.inspectCommand(name, args, cwd)
+			if isNetEgressCommand(name, args) {
+				a.NetEgress = true
+			}
+		case *syntax.Redirect:
+			// `cat secret > /dev/tcp/host/port` opens a network socket.
+			if n.Word != nil {
+				if txt, _ := wordToString(n.Word); isDevNet(txt) {
+					a.NetEgress = true
+				}
+			}
 		case *syntax.BinaryCmd:
 			if n.Op == syntax.Pipe || n.Op == syntax.PipeAll {
 				if isNetToShellPipe(n) {
@@ -411,6 +464,109 @@ func commandNameOfStmt(stmt *syntax.Stmt) string {
 		return name
 	}
 	return ""
+}
+
+// classifySecret rates a single command word that may reference secret
+// material. It understands curl's "@file" data syntax, ~ / $HOME prefixes, and
+// flags that glue the path on with '=' (e.g. --post-file=.env).
+func classifySecret(word string) SecretConfidence {
+	s := strings.TrimSpace(word)
+	if s == "" {
+		return SecretNone
+	}
+	best := classifySecretPath(s)
+	if i := strings.LastIndexByte(s, '='); i >= 0 {
+		if c := classifySecretPath(s[i+1:]); c > best {
+			best = c
+		}
+	}
+	return best
+}
+
+func classifySecretPath(s string) SecretConfidence {
+	s = strings.TrimPrefix(strings.TrimSpace(s), "@") // curl --data @file / -T @file
+	if s == "" {
+		return SecretNone
+	}
+	base := s
+	if i := strings.LastIndexByte(base, '/'); i >= 0 {
+		base = base[i+1:]
+	}
+	if strings.HasSuffix(base, ".pub") { // public keys are not secret
+		return SecretNone
+	}
+	switch base {
+	case "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519":
+		return SecretHigh
+	}
+	if strings.HasSuffix(base, ".pem") || strings.HasSuffix(base, ".key") {
+		return SecretHigh
+	}
+	if strings.Contains(s, ".aws/credentials") ||
+		strings.Contains(s, ".config/gcloud") ||
+		strings.Contains(s, ".kube/config") {
+		return SecretHigh
+	}
+	if strings.Contains(s, ".ssh/") && strings.HasPrefix(base, "id_") {
+		return SecretHigh
+	}
+	if base == ".env" || strings.HasPrefix(base, ".env.") {
+		return SecretEnv
+	}
+	return SecretNone
+}
+
+// isNetEgressCommand reports whether a command sends local data out to the
+// network. It is deliberately tight: curl/wget only count when they carry an
+// upload flag (a plain GET does not exfiltrate anything), and nc only when it is
+// connecting out rather than listening.
+func isNetEgressCommand(name string, args []string) bool {
+	switch name {
+	case "curl", "wget":
+		return hasUploadFlag(args)
+	case "nc", "ncat", "netcat":
+		return !hasListenFlag(args)
+	}
+	return false
+}
+
+func hasUploadFlag(args []string) bool {
+	for _, a := range args {
+		switch {
+		case strings.HasPrefix(a, "--data"), // curl --data, --data-binary
+			strings.HasPrefix(a, "--form"), // curl --form, --form-string
+			strings.HasPrefix(a, "--post"), // wget --post-data, --post-file
+			strings.HasPrefix(a, "--body"), // wget --body-data, --body-file
+			a == "--upload-file":
+			return true
+		case len(a) >= 2 && a[0] == '-' && a[1] != '-':
+			// Short flags, optionally glued to a value (-d@file, -Tfile). curl's
+			// -d/-F/-T carry the payload, so they lead the option string.
+			switch a[1] {
+			case 'd', 'F', 'T':
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasListenFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--listen" {
+			return true
+		}
+		if len(a) >= 2 && a[0] == '-' && a[1] != '-' && strings.ContainsRune(a, 'l') {
+			return true
+		}
+	}
+	return false
+}
+
+// isDevNet reports whether a word is a bash /dev/tcp or /dev/udp pseudo-device,
+// used to open a raw network connection (e.g. `cat secret > /dev/tcp/host/port`).
+func isDevNet(word string) bool {
+	return strings.Contains(word, "/dev/tcp/") || strings.Contains(word, "/dev/udp/")
 }
 
 // wordToString reconstructs the textual value of a word. Parameter expansions

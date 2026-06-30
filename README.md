@@ -158,6 +158,7 @@ rules:
 | `shell.force_push` | shell | `git push --force` (not `--force-with-lease`) |
 | `shell.history_rewrite` | shell | `git reset --hard`, `git clean -fd` |
 | `shell.pipe_to_shell` | shell | a network fetch piped into a shell/interpreter |
+| `shell.secret_exfil` | shell | a secret read + network egress: `high` (keys/cloud creds) \| `any` (incl. `.env`) |
 | `shell.command_in` | shell | any of these commands is invoked |
 | `path_glob` | file | doublestar globs (`~` is expanded) |
 | `url_regex` | net | regexp against the URL |
@@ -185,8 +186,9 @@ developer can't override it.
 ## Roadmap
 
 - [ ] Adapters: OpenAI Codex CLI, Cursor, Gemini CLI
-- [ ] More semantic detectors: secret-file → network exfiltration, `chmod 777`,
-      `dd`/`mkfs` to devices, package-manager `postinstall` hooks
+- [x] Secret-file → network exfiltration detector (deny keys/cloud creds, ask `.env`)
+- [ ] More semantic detectors: `chmod 777`, `dd`/`mkfs` to devices,
+      package-manager `postinstall` hooks
 - [ ] A shareable rulepack registry (`leash add <pack>`)
 - [ ] One-line installers (Homebrew, npx)
 

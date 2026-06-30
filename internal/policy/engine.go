@@ -127,6 +127,15 @@ func matchShell(m *ShellMatch, a *shell.Analysis) bool {
 	if m.PipeToShell && !a.PipeToShellFromNet {
 		return false
 	}
+	if m.SecretExfil != "" {
+		// Exfiltration = a secret is read AND data leaves over the network.
+		if !a.NetEgress || a.SecretRead == shell.SecretNone {
+			return false
+		}
+		if m.SecretExfil == "high" && a.SecretRead != shell.SecretHigh {
+			return false
+		}
+	}
 	if len(m.CommandIn) > 0 && !a.Has(m.CommandIn...) {
 		return false
 	}
