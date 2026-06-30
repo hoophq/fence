@@ -1,8 +1,10 @@
 package policy
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -14,16 +16,21 @@ type Engine struct {
 	rules         []Rule
 	defaultEffect Effect
 	home          string
+	warnings      []string
 }
 
 // NewEngine builds an engine from one or more rulepacks. Later packs are
 // appended after earlier ones; the default effect is taken from the last pack
-// that sets one, falling back to allow. Rulepacks must already be validated
-// (Load/LoadFile do this).
+// that sets one, falling back to allow. Effect overrides from every pack are
+// applied to the pooled rules by id (later packs win); an override that targets
+// an unknown id is recorded as a warning rather than failing. Rulepacks must
+// already be validated (Load/LoadFile do this).
 func NewEngine(packs ...*Rulepack) *Engine {
 	e := &Engine{defaultEffect: EffectAllow}
 	home, _ := os.UserHomeDir()
 	e.home = home
+
+	overrides := map[string]Effect{}
 	for _, p := range packs {
 		if p == nil {
 			continue
@@ -32,8 +39,37 @@ func NewEngine(packs ...*Rulepack) *Engine {
 			e.defaultEffect = p.Default
 		}
 		e.rules = append(e.rules, p.Rules...)
+		for id, eff := range p.Overrides {
+			overrides[id] = eff // later packs win
+		}
 	}
+
+	// Apply effect overrides to the pooled rules by id; only the effect changes.
+	applied := map[string]bool{}
+	for i := range e.rules {
+		if eff, ok := overrides[e.rules[i].ID]; ok {
+			e.rules[i].Effect = eff
+			applied[e.rules[i].ID] = true
+		}
+	}
+	var unknown []string
+	for id := range overrides {
+		if !applied[id] {
+			unknown = append(unknown, id)
+		}
+	}
+	sort.Strings(unknown)
+	for _, id := range unknown {
+		e.warnings = append(e.warnings, fmt.Sprintf("override targets unknown rule id %q (ignored)", id))
+	}
+
 	return e
+}
+
+// Warnings returns non-fatal issues found while building the engine (e.g. an
+// override that referenced a rule id no rulepack defines).
+func (e *Engine) Warnings() []string {
+	return e.warnings
 }
 
 // Evaluate returns the decision for an action. When several rules match, the

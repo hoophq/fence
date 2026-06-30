@@ -60,7 +60,11 @@ func buildEngine() (*policy.Engine, error) {
 		packs = append(packs, pack)
 	}
 
-	return policy.NewEngine(packs...), nil
+	engine := policy.NewEngine(packs...)
+	for _, w := range engine.Warnings() {
+		fmt.Fprintf(os.Stderr, "leash: %s\n", w)
+	}
+	return engine, nil
 }
 
 func discoverProjectRules() string {

@@ -168,6 +168,19 @@ rules:
 
 See [`examples/custom-rules.yaml`](examples/custom-rules.yaml).
 
+### Overriding a rule's effect
+
+Retune any rule by id — including the built-in recommended ones — without redefining it. Only the **effect** changes; the rule's match, severity, and message stay as-is.
+
+```yaml
+overrides:
+  destructive-delete-sensitive: ask    # soften a deny -> ask
+  git-force-push: deny                 # strengthen an ask -> deny
+  pipe-to-shell-from-network: allow    # neutralize (effectively disable)
+```
+
+So to make a recommended rule stricter or looser, this is the one-liner — no need to copy the rule. An override aimed at an unknown id is reported on stderr and ignored (it never breaks the agent).
+
 ---
 
 ## What Leash is — and isn't

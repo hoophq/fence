@@ -10,6 +10,13 @@
 name: custom-example
 default: allow
 
+# Retune existing rules by id — only the effect changes. Great for softening or
+# strengthening the built-in recommended rules without copying them.
+overrides:
+  git-force-push: deny                  # make force-push a hard block, not a prompt
+  # destructive-delete-sensitive: ask   # e.g. soften the home/root delete block
+  # pipe-to-shell-from-network: allow   # e.g. allow curl | sh
+
 rules:
   # Block destructive infrastructure commands outright.
   - id: no-terraform-destroy

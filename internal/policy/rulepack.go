@@ -15,9 +15,14 @@ var builtinFS embed.FS
 // Rulepack is a named, shareable collection of rules — the unit users publish
 // and compose. The shipped "recommended" pack is embedded in the binary.
 type Rulepack struct {
-	Name    string `yaml:"name"`
+	Name string `yaml:"name"`
+	// Default is the effect applied when no rule matches. Last pack to set it wins.
 	Default Effect `yaml:"default,omitempty"`
-	Rules   []Rule `yaml:"rules"`
+	// Overrides retunes existing rules by id, changing only their effect
+	// (e.g. soften a recommended deny to ask). Applied across all packs once
+	// rules are pooled; later packs win.
+	Overrides map[string]Effect `yaml:"overrides,omitempty"`
+	Rules     []Rule            `yaml:"rules"`
 }
 
 // Load parses and validates a rulepack from r.
@@ -68,6 +73,11 @@ func Recommended() *Rulepack {
 func (p *Rulepack) validate() error {
 	if p.Default != "" && !p.Default.Valid() {
 		return fmt.Errorf("rulepack %q has invalid default effect %q", p.Name, p.Default)
+	}
+	for id, eff := range p.Overrides {
+		if !eff.Valid() {
+			return fmt.Errorf("rulepack %q: override for %q has invalid effect %q", p.Name, id, eff)
+		}
 	}
 	ids := map[string]bool{}
 	for i := range p.Rules {
