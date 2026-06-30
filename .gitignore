@@ -1,0 +1,13 @@
+# Build output
+/leash
+/dist/
+*.test
+*.out
+
+# Go
+/vendor/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

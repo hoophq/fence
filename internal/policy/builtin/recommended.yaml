@@ -1,0 +1,110 @@
+# Leash recommended rulepack.
+#
+# Philosophy: a guardrail that produces false positives gets uninstalled. Only
+# unambiguous, almost-never-intentional catastrophes are denied outright; for
+# anything a developer might legitimately mean, we ask for confirmation instead
+# of blocking. Everyday operations (rm -rf node_modules, rm -rf ./dist, rm -rf *)
+# are deliberately NOT matched.
+name: recommended
+default: allow
+
+rules:
+  - id: destructive-delete-sensitive
+    description: Recursive delete targeting home, root, or a system location
+    severity: critical
+    effect: deny
+    message: >-
+      Leash blocked a recursive delete aimed at a sensitive location
+      (home, root, or a system path). This is almost never what you want from an
+      agent. If you really mean it, run the command yourself.
+    match:
+      shell:
+        recursive_delete: true
+        delete_target: sensitive
+
+  - id: destructive-delete-outside-workspace
+    description: Recursive delete pointing outside the current workspace
+    severity: high
+    effect: ask
+    message: >-
+      This recursive delete points outside your workspace. Confirm the target is
+      correct before allowing it.
+    match:
+      shell:
+        recursive_delete: true
+        delete_target: outside_workspace
+
+  - id: pipe-to-shell-from-network
+    description: Piping a network download directly into a shell or interpreter
+    severity: high
+    effect: ask
+    message: >-
+      A downloaded script is being piped straight into a shell (curl ... | sh).
+      Inspect the source before running it.
+    match:
+      shell:
+        pipe_to_shell: true
+
+  - id: git-force-push
+    description: Force-push can irreversibly overwrite remote history
+    severity: medium
+    effect: ask
+    message: >-
+      Force-push detected. This can overwrite history others depend on. Prefer
+      --force-with-lease, or confirm if you are sure.
+    match:
+      shell:
+        force_push: true
+
+  - id: git-destructive-history
+    description: "git reset --hard / git clean -fd discards work irreversibly"
+    severity: medium
+    effect: ask
+    message: >-
+      This git command permanently discards uncommitted work. Confirm before
+      continuing.
+    match:
+      shell:
+        history_rewrite: true
+
+  - id: fork-bomb
+    description: Classic shell fork bomb
+    severity: critical
+    effect: deny
+    message: Leash blocked what looks like a fork bomb.
+    match:
+      regex: ':\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:'
+
+  - id: write-credential-files
+    description: Writing or overwriting credential, key, or secret files
+    severity: high
+    effect: ask
+    message: >-
+      An edit targets credential or secret material (SSH keys, cloud
+      credentials, or a .env file). Confirm this is intended.
+    match:
+      tool: [file_write]
+      path_glob:
+        - "~/.ssh/**"
+        - "~/.aws/**"
+        - "~/.config/gcloud/**"
+        - "~/.kube/config"
+        - "**/.env"
+        - "**/.env.*"
+
+  - id: write-shell-profile
+    description: Modifying shell startup files or git hooks (persistence vectors)
+    severity: medium
+    effect: ask
+    message: >-
+      An edit targets a shell startup file or git hook. These run automatically
+      and are a common persistence vector. Confirm this is intended.
+    match:
+      tool: [file_write]
+      path_glob:
+        - "~/.bashrc"
+        - "~/.zshrc"
+        - "~/.profile"
+        - "~/.bash_profile"
+        - "~/.zprofile"
+        - "**/.git/hooks/**"
