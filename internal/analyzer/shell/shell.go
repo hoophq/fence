@@ -116,6 +116,11 @@ type Analysis struct {
 	// shell or interpreter (curl ... | sh).
 	PipeToShellFromNet bool
 
+	// ForkBomb is true when a function definition pipes into itself on both
+	// sides (`:(){ :|:& };:` plus renamed, spaced, and `&`-less variants) — the
+	// self-replicating shape that exhausts the machine.
+	ForkBomb bool
+
 	// SecretRead is the highest-confidence secret reference seen in the command
 	// (e.g. a private key, cloud credential, or .env file being read).
 	SecretRead SecretConfidence
@@ -229,6 +234,10 @@ func Analyze(command, cwd string) Analysis {
 				if isNetToShellPipe(n) {
 					a.PipeToShellFromNet = true
 				}
+			}
+		case *syntax.FuncDecl:
+			if isForkBomb(n) {
+				a.ForkBomb = true
 			}
 		}
 		return true
@@ -636,6 +645,45 @@ func commandNameOfStmt(stmt *syntax.Stmt) string {
 		return name
 	}
 	return ""
+}
+
+// isForkBomb reports whether a function definition is a fork bomb: its body
+// contains a pipeline that calls the function's own name on both sides — the
+// canonical `:(){ :|:& };:` plus renamed, spaced, and `&`-less variants such as
+// `bomb(){ bomb|bomb& }` or `:(){ :|:; }`. Every invocation spawns two or more
+// of itself, so processes multiply exponentially and exhaust the machine.
+// Detecting the definition (rather than the trailing trigger call) also catches
+// define-now/run-later forms the old literal regex missed.
+//
+// The signature is the *self-pipe*: a pipeline with two or more stages that call
+// the function itself. The background `&` is incidental (it merely makes each
+// invocation return sooner), so it is not required. Requiring two self-calls is
+// what keeps false positives out — ordinary recursion (`f(){ f; }`) has no pipe,
+// and a tail-recursive stream (`f(){ cmd | f; }`) calls itself only once.
+func isForkBomb(fn *syntax.FuncDecl) bool {
+	if fn.Name == nil || fn.Body == nil {
+		return false
+	}
+	name := fn.Name.Value
+	found := false
+	syntax.Walk(fn.Body, func(node syntax.Node) bool {
+		bc, ok := node.(*syntax.BinaryCmd)
+		if !ok || (bc.Op != syntax.Pipe && bc.Op != syntax.PipeAll) {
+			return true
+		}
+		selfCalls := 0
+		for _, stage := range pipelineStages(&syntax.Stmt{Cmd: bc}) {
+			if stage == name {
+				selfCalls++
+			}
+		}
+		if selfCalls >= 2 {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // classifySecret rates a single command word that may reference secret

@@ -58,6 +58,40 @@ func TestRecommendedShellDecisions(t *testing.T) {
 	}
 }
 
+func TestRecommendedForkBombDecisions(t *testing.T) {
+	e := recommendedEngine(t)
+
+	cases := []struct {
+		command string
+		want    Effect
+		rule    string
+	}{
+		// Fork bombs -> deny (now via the AST fact, not the old regex).
+		{":(){ :|:& };:", EffectDeny, "fork-bomb"},
+		{"bomb(){ bomb|bomb& };bomb", EffectDeny, "fork-bomb"},
+		{":(){ :|:; };:", EffectDeny, "fork-bomb"},
+		// Legit recursion / streaming must stay allowed.
+		{"f(){ f; }; f", EffectAllow, ""},
+		{"stream(){ cat input | stream; }", EffectAllow, ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			d := e.Evaluate(Action{Kind: ActionShell, Command: tc.command, Cwd: "/work"})
+			if d.Effect != tc.want {
+				t.Fatalf("Effect = %q, want %q", d.Effect, tc.want)
+			}
+			gotRule := ""
+			if d.Rule != nil {
+				gotRule = d.Rule.ID
+			}
+			if gotRule != tc.rule {
+				t.Errorf("deciding rule = %q, want %q", gotRule, tc.rule)
+			}
+		})
+	}
+}
+
 func TestRecommendedFileDecisions(t *testing.T) {
 	e := recommendedEngine(t)
 	home, _ := os.UserHomeDir()

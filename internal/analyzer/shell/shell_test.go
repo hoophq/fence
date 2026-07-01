@@ -116,6 +116,44 @@ func TestPipeToShellFromNet(t *testing.T) {
 	}
 }
 
+func TestForkBomb(t *testing.T) {
+	cases := []struct {
+		name    string
+		command string
+		want    bool
+	}{
+		// Fork bombs — the self-pipe, in various disguises.
+		{"canonical", ":(){ :|:& };:", true},
+		{"spaced", ": () { : | : & }; :", true},
+		{"renamed", "bomb(){ bomb|bomb& };bomb", true},
+		{"renamed spaced", "boom() { boom | boom & }; boom", true},
+		{"no background", ":(){ :|:; };:", true},
+		{"definition only, no trigger", ":(){ :|:& }", true},
+		{"three stages", "x(){ x|x|x& };x", true},
+
+		// Not fork bombs (false-positive guards).
+		{"plain recursion", "f(){ f; }; f", false},
+		{"tail-recursive stream", "stream(){ cat input | stream; }", false},
+		{"backgrounded pipe, no self-call", "worker(){ producer | consumer & }", false},
+		{"single self-call", "run(){ setup | run & }; run", false},
+		{"function without a pipe", "deploy(){ build && test; }", false},
+		{"plain pipe, no function", "echo hi | grep h", false},
+		{"ordinary command", "ls -la", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Analyze(tc.command, "/work")
+			if !a.Parsed {
+				t.Fatalf("command did not parse: %q", tc.command)
+			}
+			if a.ForkBomb != tc.want {
+				t.Errorf("ForkBomb = %v, want %v", a.ForkBomb, tc.want)
+			}
+		})
+	}
+}
+
 func TestChmodFacts(t *testing.T) {
 	const cwd = "/Users/dev/project"
 	cases := []struct {

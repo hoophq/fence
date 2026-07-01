@@ -147,7 +147,8 @@ rules:
     effect: deny
     message: Leash blocked what looks like a fork bomb.
     match:
-      regex: ':\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:'
+      shell:
+        fork_bomb: true
 
   - id: read-credential-files
     description: Reading private keys or cloud credentials (their contents enter the agent's context)

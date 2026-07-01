@@ -52,6 +52,7 @@ type ShellMatch struct {
 	ForcePush          bool     `yaml:"force_push,omitempty"`
 	HistoryRewrite     bool     `yaml:"history_rewrite,omitempty"`
 	PipeToShell        bool     `yaml:"pipe_to_shell,omitempty"`
+	ForkBomb           bool     `yaml:"fork_bomb,omitempty"`
 	SecretExfil        string   `yaml:"secret_exfil,omitempty"` // high|any
 	SecretRead         string   `yaml:"secret_read,omitempty"`  // high|any — a reader command dumps a secret to stdout
 	CommandIn          []string `yaml:"command_in,omitempty"`
