@@ -58,6 +58,44 @@ func TestRecommendedShellDecisions(t *testing.T) {
 	}
 }
 
+func TestRecommendedInstallDecisions(t *testing.T) {
+	e := recommendedEngine(t)
+
+	cases := []struct {
+		command string
+		want    Effect
+		rule    string
+	}{
+		// Non-registry installs -> ask.
+		{"npm i git+https://github.com/evil/pkg", EffectAsk, "install-from-non-registry-source"},
+		{"pip install git+https://x", EffectAsk, "install-from-non-registry-source"},
+		{"npm install ./vendor/pkg.tgz", EffectAsk, "install-from-non-registry-source"},
+		{"python3 -m pip install git+https://x", EffectAsk, "install-from-non-registry-source"},
+		// Registry installs -> allow (no false positives).
+		{"npm install", EffectAllow, ""},
+		{"npm install lodash", EffectAllow, ""},
+		{"pip install -r requirements.txt", EffectAllow, ""},
+		{"pip install --index-url https://my.pypi/simple requests", EffectAllow, ""},
+		{"npm ci", EffectAllow, ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			d := e.Evaluate(Action{Kind: ActionShell, Command: tc.command, Cwd: "/work"})
+			if d.Effect != tc.want {
+				t.Fatalf("Effect = %q, want %q", d.Effect, tc.want)
+			}
+			gotRule := ""
+			if d.Rule != nil {
+				gotRule = d.Rule.ID
+			}
+			if gotRule != tc.rule {
+				t.Errorf("deciding rule = %q, want %q", gotRule, tc.rule)
+			}
+		})
+	}
+}
+
 func TestRecommendedForkBombDecisions(t *testing.T) {
 	e := recommendedEngine(t)
 

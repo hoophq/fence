@@ -81,6 +81,18 @@ rules:
       shell:
         pipe_to_shell: true
 
+  - id: install-from-non-registry-source
+    description: Installing a package from a non-registry source (git, URL, or local archive)
+    severity: high
+    effect: ask
+    message: >-
+      A package is being installed from outside the registry — a git repo, URL,
+      or local archive — which runs that package's install scripts and skips
+      registry review. Confirm you trust the source.
+    match:
+      shell:
+        non_registry_install: true
+
   - id: secret-exfiltration-high
     description: Reading a private key or cloud credential and sending it to the network
     severity: critical

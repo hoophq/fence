@@ -134,6 +134,12 @@ type Analysis struct {
 	// commands that merely name the path (chmod, ls, cp), and it ignores .env.
 	SecretDump SecretConfidence
 
+	// NonRegistryInstall is true when a package manager (npm/yarn/pnpm/bun/pip)
+	// is asked to install from a non-registry source — a git spec, URL, or local
+	// archive — which runs that package's install scripts and skips registry
+	// review. Plain registry installs (`npm install lodash`) never count.
+	NonRegistryInstall bool
+
 	// Raw is the original command text.
 	Raw string
 }
@@ -172,6 +178,22 @@ var (
 		"base64": true, "base32": true,
 		"xxd": true, "od": true, "hexdump": true, "hd": true,
 		"strings": true,
+	}
+	// installValueFlags are package-manager flags whose following token is a
+	// config value (an index/registry URL, a links dir, a requirements file, a
+	// target dir) rather than a package source — so that value must not be
+	// mistaken for an install source. `-e`/`--editable` is deliberately absent:
+	// its value *is* a source (`pip install -e git+https://…`).
+	installValueFlags = map[string]bool{
+		// pip
+		"-i": true, "--index-url": true, "--extra-index-url": true,
+		"-f": true, "--find-links": true, "-c": true, "--constraint": true,
+		"-r": true, "--requirement": true, "-t": true, "--target": true,
+		"--cache-dir": true, "--src": true, "--root": true, "--prefix": true,
+		// npm / yarn / pnpm
+		"--registry": true, "--cache": true, "--userconfig": true,
+		"--globalconfig": true, "--tag": true, "--otp": true,
+		"--dir": true, "-C": true, "--workspace": true, "-w": true,
 	}
 )
 
@@ -305,6 +327,7 @@ func (a *Analysis) inspectCommand(name string, args []string, cwd string) {
 			}
 		}
 	}
+	a.inspectInstall(name, args)
 }
 
 func (a *Analysis) inspectGit(args []string) {
@@ -360,6 +383,107 @@ func (a *Analysis) inspectGit(args []string) {
 			a.HistoryRewrite = true
 		}
 	}
+}
+
+// inspectInstall flags installing a package from a non-registry source (a git
+// spec, URL, or local archive), across npm/yarn/pnpm/bun and pip (including
+// `python -m pip install`). Registry installs like `npm install lodash` or
+// `pip install -r requirements.txt` are left alone.
+func (a *Analysis) inspectInstall(name string, args []string) {
+	rest, ok := installArgs(name, args)
+	if !ok {
+		return
+	}
+	skipNext := false
+	for _, arg := range rest {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			if installValueFlags[arg] {
+				skipNext = true // its value is config (an index/dir/file), not a source
+			}
+			continue
+		}
+		if isNonRegistrySource(arg) {
+			a.NonRegistryInstall = true
+		}
+	}
+}
+
+// installArgs reports whether name+args is a package-install invocation and, if
+// so, returns the tokens following the install subcommand.
+func installArgs(name string, args []string) ([]string, bool) {
+	switch name {
+	case "npm", "pnpm", "bun":
+		return afterSubcommand(args, "install", "i", "add")
+	case "yarn":
+		return afterSubcommand(args, "add")
+	case "pip", "pip2", "pip3":
+		return afterSubcommand(args, "install")
+	case "python", "python3", "python2":
+		// python -m pip install ...
+		if len(args) >= 2 && args[0] == "-m" && args[1] == "pip" {
+			return afterSubcommand(args[2:], "install")
+		}
+	}
+	return nil, false
+}
+
+// afterSubcommand returns the tokens after the first non-flag token when that
+// token is one of subs; otherwise it reports false. Flags preceding the
+// subcommand (e.g. `npm --loglevel=warn install`) are skipped.
+func afterSubcommand(args []string, subs ...string) ([]string, bool) {
+	for i, arg := range args {
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		for _, s := range subs {
+			if arg == s {
+				return args[i+1:], true
+			}
+		}
+		return nil, false // first non-flag token is not an install subcommand
+	}
+	return nil, false
+}
+
+// isNonRegistrySource reports whether an install operand names a non-registry
+// source — a VCS spec, a hosting shorthand, a file: URL, or a source archive.
+// Plain registry names (`lodash`, `@scope/pkg`, `django==4.2`) return false, and
+// bare index/registry URLs never reach here as sources (inspectInstall skips
+// them as flag values).
+func isNonRegistrySource(arg string) bool {
+	s := strings.TrimSpace(arg)
+	if s == "" {
+		return false
+	}
+	// Version-control specs.
+	if strings.HasPrefix(s, "git+") || strings.HasPrefix(s, "git://") || strings.HasPrefix(s, "git@") {
+		return true
+	}
+	// Hosting shorthands (npm) and the file: protocol.
+	for _, p := range []string{"github:", "gitlab:", "bitbucket:", "gist:", "file:"} {
+		if strings.HasPrefix(s, p) {
+			return true
+		}
+	}
+	// A source archive, local or remote (pkg.tgz, x.tar.gz, y.whl, …).
+	return hasArchiveExt(s)
+}
+
+func hasArchiveExt(s string) bool {
+	// Drop any URL query/fragment before checking the extension.
+	if i := strings.IndexAny(s, "?#"); i >= 0 {
+		s = s[:i]
+	}
+	for _, ext := range []string{".tgz", ".tar.gz", ".tar.bz2", ".tar.xz", ".tar", ".whl", ".zip"} {
+		if strings.HasSuffix(s, ext) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveCommand returns the effective command name and its arguments, peeling

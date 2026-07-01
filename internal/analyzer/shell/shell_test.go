@@ -116,6 +116,61 @@ func TestPipeToShellFromNet(t *testing.T) {
 	}
 }
 
+func TestNonRegistryInstall(t *testing.T) {
+	cases := []struct {
+		name    string
+		command string
+		want    bool
+	}{
+		// Non-registry sources — git, URL, hosting shorthand, local archive.
+		{"npm git+https", "npm i git+https://github.com/evil/pkg", true},
+		{"npm install git+ssh", "npm install git+ssh://git@github.com/evil/pkg.git", true},
+		{"npm github shorthand", "npm i github:evil/pkg", true},
+		{"npm local tgz", "npm install ./vendor/pkg.tgz", true},
+		{"npm global git", "npm i -g git+https://evil/pkg", true},
+		{"yarn add tarball url", "yarn add https://example.com/pkg.tar.gz", true},
+		{"pnpm add file", "pnpm add file:../local-pkg", true},
+		{"bun add git", "bun add git+https://evil/pkg", true},
+		{"pip git+https", "pip install git+https://github.com/evil/pkg", true},
+		{"pip3 git", "pip3 install git+https://x", true},
+		{"pip editable git", "pip install -e git+https://x#egg=y", true},
+		{"pip local wheel", "pip install ./dist/pkg-1.0-py3-none-any.whl", true},
+		{"python -m pip git", "python3 -m pip install git+https://x", true},
+
+		// Registry installs and config-flag values — must not flag.
+		{"npm install bare", "npm install", false},
+		{"npm install pkg", "npm install lodash", false},
+		{"npm install several", "npm i react react-dom", false},
+		{"npm scoped pkg", "npm install @types/node", false},
+		{"npm versioned", "npm install lodash@^4.17.0", false},
+		{"npm registry flag url", "npm install --registry https://reg.local lodash", false},
+		{"npm ci uses lockfile", "npm ci", false},
+		{"yarn install lockfile", "yarn install", false},
+		{"npm run script named postinstall", "npm run postinstall", false},
+		{"pip requirements file", "pip install -r requirements.txt", false},
+		{"pip constraint file", "pip install -c constraints.txt flask", false},
+		{"pip versioned", "pip install django==4.2", false},
+		{"pip index-url value", "pip install --index-url https://my.pypi/simple requests", false},
+		{"pip find-links archive value", "pip install --find-links ./wheels/foo.whl tensorflow", false},
+		{"pip editable local project", "pip install -e .", false},
+		{"pip current dir", "pip install .", false},
+		{"pip download not install", "pip download requests", false},
+		{"bare git url, no installer", "git+https://x", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Analyze(tc.command, "/work")
+			if !a.Parsed {
+				t.Fatalf("command did not parse: %q", tc.command)
+			}
+			if a.NonRegistryInstall != tc.want {
+				t.Errorf("NonRegistryInstall = %v, want %v", a.NonRegistryInstall, tc.want)
+			}
+		})
+	}
+}
+
 func TestForkBomb(t *testing.T) {
 	cases := []struct {
 		name    string
