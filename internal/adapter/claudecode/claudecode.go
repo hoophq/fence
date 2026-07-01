@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/hoophq/leash/internal/policy"
 )
@@ -27,9 +28,14 @@ type hookInput struct {
 }
 
 type toolInput struct {
-	Command  string `json:"command"`   // Bash
-	FilePath string `json:"file_path"` // Write/Edit/MultiEdit/Read/NotebookEdit
-	URL      string `json:"url"`       // WebFetch
+	Command   string `json:"command"`    // Bash
+	FilePath  string `json:"file_path"`  // Write/Edit/MultiEdit/Read/NotebookEdit
+	URL       string `json:"url"`        // WebFetch
+	Content   string `json:"content"`    // Write: full new file content
+	NewString string `json:"new_string"` // Edit: replacement text
+	Edits     []struct {
+		NewString string `json:"new_string"`
+	} `json:"edits"` // MultiEdit: sequence of replacements
 }
 
 // ParseAction reads a PreToolUse payload from r and normalizes it into a
@@ -56,6 +62,7 @@ func ParseAction(r io.Reader) (policy.Action, error) {
 	case "Write", "Edit", "MultiEdit", "NotebookEdit":
 		a.Kind = policy.ActionFileWrite
 		a.Path = ti.FilePath
+		a.Content = writeContent(in.ToolName, ti)
 	case "Read":
 		a.Kind = policy.ActionFileRead
 		a.Path = ti.FilePath
@@ -66,6 +73,27 @@ func ParseAction(r io.Reader) (policy.Action, error) {
 		a.Kind = policy.ActionUnknown
 	}
 	return a, nil
+}
+
+// writeContent returns the new text a file-editing tool will introduce, for
+// content-aware rules. For Write it is the whole file; for Edit/MultiEdit it is
+// the replacement text (the fragment being added), which need not be valid on
+// its own.
+func writeContent(tool string, ti toolInput) string {
+	switch tool {
+	case "Write":
+		return ti.Content
+	case "Edit":
+		return ti.NewString
+	case "MultiEdit":
+		var b strings.Builder
+		for _, e := range ti.Edits {
+			b.WriteString(e.NewString)
+			b.WriteByte('\n')
+		}
+		return b.String()
+	}
+	return ""
 }
 
 // hookOutput is the PreToolUse response envelope.
