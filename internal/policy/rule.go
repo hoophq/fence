@@ -33,6 +33,10 @@ type Match struct {
 	// A leading ~/ is expanded to the user's home directory.
 	PathGlob []string `yaml:"path_glob,omitempty"`
 
+	// ManifestHook matches a file_write whose content introduces a package
+	// install lifecycle hook (package.json script / setup.py cmdclass).
+	ManifestHook bool `yaml:"manifest_hook,omitempty"`
+
 	// URLRegex matches net_fetch URLs.
 	URLRegex string `yaml:"url_regex,omitempty"`
 
@@ -61,7 +65,7 @@ type ShellMatch struct {
 
 func (m Match) isEmpty() bool {
 	return len(m.Tool) == 0 && m.Shell == nil && len(m.PathGlob) == 0 &&
-		m.URLRegex == "" && m.Regex == ""
+		!m.ManifestHook && m.URLRegex == "" && m.Regex == ""
 }
 
 // compile validates and pre-compiles the rule's regular expressions.

@@ -200,6 +200,44 @@ func TestRecommendedFileReadDecisions(t *testing.T) {
 	}
 }
 
+func TestRecommendedManifestHookDecisions(t *testing.T) {
+	e := recommendedEngine(t)
+	const cwd = "/Users/dev/project"
+
+	cases := []struct {
+		name    string
+		path    string
+		content string
+		want    Effect
+		rule    string
+	}{
+		// Injecting an install lifecycle hook -> ask.
+		{"package.json postinstall", "/Users/dev/project/package.json", `{"scripts":{"postinstall":"node evil.js"}}`, EffectAsk, "inject-package-lifecycle-hook"},
+		{"package.json edit fragment", "/Users/dev/project/package.json", `"preinstall": "sh x",`, EffectAsk, "inject-package-lifecycle-hook"},
+		{"setup.py cmdclass", "/Users/dev/project/setup.py", "setup(cmdclass={'install': X})", EffectAsk, "inject-package-lifecycle-hook"},
+		// No hook -> allow (false-positive guards).
+		{"husky prepare", "/Users/dev/project/package.json", `{"scripts":{"prepare":"husky install"}}`, EffectAllow, ""},
+		{"ordinary scripts", "/Users/dev/project/package.json", `{"scripts":{"build":"tsc"}}`, EffectAllow, ""},
+		{"ordinary source file", "/Users/dev/project/main.go", "package main", EffectAllow, ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := e.Evaluate(Action{Kind: ActionFileWrite, Path: tc.path, Content: tc.content, Cwd: cwd})
+			if d.Effect != tc.want {
+				t.Fatalf("Effect = %q, want %q", d.Effect, tc.want)
+			}
+			gotRule := ""
+			if d.Rule != nil {
+				gotRule = d.Rule.ID
+			}
+			if gotRule != tc.rule {
+				t.Errorf("deciding rule = %q, want %q", gotRule, tc.rule)
+			}
+		})
+	}
+}
+
 func TestDenyOverridesAsk(t *testing.T) {
 	// A command that trips both a deny rule and an ask rule must resolve to deny.
 	pack := &Rulepack{

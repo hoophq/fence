@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/hoophq/leash/internal/analyzer/manifest"
 	"github.com/hoophq/leash/internal/analyzer/shell"
 )
 
@@ -81,11 +82,16 @@ func (e *Engine) Evaluate(a Action) Decision {
 		got := shell.Analyze(a.Command, a.Cwd)
 		analysis = &got
 	}
+	var manifestA *manifest.Analysis
+	if a.Kind == ActionFileWrite {
+		got := manifest.Analyze(a.Path, a.Content)
+		manifestA = &got
+	}
 
 	decision := Decision{Effect: e.defaultEffect}
 	for i := range e.rules {
 		r := &e.rules[i]
-		if !e.matches(r, a, analysis) {
+		if !e.matches(r, a, analysis, manifestA) {
 			continue
 		}
 		decision.Matched = append(decision.Matched, r)
@@ -97,7 +103,7 @@ func (e *Engine) Evaluate(a Action) Decision {
 	return decision
 }
 
-func (e *Engine) matches(r *Rule, a Action, analysis *shell.Analysis) bool {
+func (e *Engine) matches(r *Rule, a Action, analysis *shell.Analysis, manifestA *manifest.Analysis) bool {
 	m := r.Match
 
 	if len(m.Tool) > 0 && !containsKind(m.Tool, a.Kind) {
@@ -115,6 +121,12 @@ func (e *Engine) matches(r *Rule, a Action, analysis *shell.Analysis) bool {
 			return false
 		}
 		if !e.matchPathGlobs(m.PathGlob, a) {
+			return false
+		}
+	}
+
+	if m.ManifestHook {
+		if a.Kind != ActionFileWrite || manifestA == nil || !manifestA.LifecycleHook {
 			return false
 		}
 	}

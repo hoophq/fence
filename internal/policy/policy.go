@@ -26,6 +26,7 @@ type Action struct {
 	Command string // ActionShell: the shell command
 	Path    string // ActionFileWrite/ActionFileRead: the target file path
 	URL     string // ActionNetFetch: the URL
+	Content string // ActionFileWrite: the new file content (full file, or the edit's replacement text)
 
 	Cwd  string // working directory, used for workspace-relative reasoning
 	Tool string // original agent tool name (e.g. "Bash"), for diagnostics

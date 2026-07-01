@@ -215,3 +215,15 @@ rules:
         - "~/.bash_profile"
         - "~/.zprofile"
         - "**/.git/hooks/**"
+
+  - id: inject-package-lifecycle-hook
+    description: Adding an install lifecycle hook to a package manifest (package.json / setup.py)
+    severity: high
+    effect: ask
+    message: >-
+      This edit adds an install lifecycle hook (a preinstall/install/postinstall
+      script, or a setup.py cmdclass) that runs automatically on the next
+      install. That is a common supply-chain backdoor — confirm you intend it.
+    match:
+      tool: [file_write]
+      manifest_hook: true
