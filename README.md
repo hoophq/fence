@@ -51,13 +51,21 @@ differently:
 
 ## Install
 
-### Homebrew (macOS / Linux)
+### Homebrew (macOS)
 
 ```bash
 brew install hoophq/tap/leash
 ```
 
-> Lands with the first tagged release. Until then, install from source:
+### npx (macOS / Linux · x64 / arm64)
+
+```bash
+npx @hoophq/leash check 'rm -rf ~'
+npx @hoophq/leash init            # wire it into Claude Code
+```
+
+> Both install a real native binary and land with the first tagged release.
+> Until then, install from source:
 
 ### From source
 
@@ -71,8 +79,6 @@ or clone and build:
 git clone https://github.com/hoophq/leash && cd leash
 make build      # -> ./dist/leash
 ```
-
-> An `npx leash` one-liner is next on the installer roadmap.
 
 ---
 

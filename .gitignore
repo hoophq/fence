@@ -1,6 +1,7 @@
 # Build output
 /leash
 /dist/
+/npm/build/
 *.test
 *.out
 
