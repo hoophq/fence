@@ -158,6 +158,60 @@ func TestChmodFacts(t *testing.T) {
 	}
 }
 
+func TestBlockDeviceWrite(t *testing.T) {
+	cases := []struct {
+		name    string
+		command string
+		want    bool
+	}{
+		// dd writing to a real block device.
+		{"dd to sda", "dd if=x of=/dev/sda", true},
+		{"dd to disk2", "dd of=/dev/disk2 bs=1m", true},
+		{"dd zero to nvme", "dd if=/dev/zero of=/dev/nvme0n1", true},
+		{"dd to sd partition", "dd if=img of=/dev/sdb1", true},
+		{"dd to mmcblk", "dd if=backup.img of=/dev/mmcblk0", true},
+		{"sudo dd to rdisk", "sudo dd if=image.iso of=/dev/rdisk3 bs=1m", true},
+		{"dd to xen disk", "dd if=/dev/zero of=/dev/xvda", true},
+		// mkfs formatting a device.
+		{"mkfs.ext4 partition", "mkfs.ext4 /dev/sdb1", true},
+		{"mkfs -t device", "mkfs -t ext4 /dev/sdb", true},
+		{"mkfs.vfat macos slice", "mkfs.vfat /dev/disk2s1", true},
+		{"mkfs with label flag", "mkfs.ext4 -L data /dev/vdb", true},
+		// Raw redirects onto a block device.
+		{"redirect to sda", "cat image.iso > /dev/sda", true},
+		{"append to sdb", "echo x >> /dev/sdb", true},
+
+		// dd/redirect to a pseudo-device or file — safe, must not flag.
+		{"dd to image file", "dd if=/dev/zero of=disk.img bs=1M count=100", false},
+		{"dd to null", "dd of=/dev/null", false},
+		{"dd file to file", "dd if=in.iso of=out.iso", false},
+		{"dd reading disk to file", "dd if=/dev/sda of=backup.img", false},
+		{"dd urandom to file", "dd if=/dev/urandom of=random.bin bs=1M count=1", false},
+		{"mkfs on image file", "mkfs.ext4 disk.img", false},
+		{"mkfs on relative image", "mkfs -t ext4 ./fs.img", false},
+		{"redirect to null", "cat foo > /dev/null", false},
+		{"redirect to file", "echo hi > output.txt", false},
+		{"stderr to null", "make 2>/dev/null", false},
+		// Reading from a disk is not a destructive write.
+		{"cat a disk", "cat /dev/sda", false},
+		{"clone disk out via pipe", "dd if=/dev/sda | gzip > disk.img.gz", false},
+		// Not dd/mkfs at all.
+		{"list", "ls -la", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Analyze(tc.command, "/Users/dev/project")
+			if !a.Parsed {
+				t.Fatalf("command did not parse: %q", tc.command)
+			}
+			if a.BlockDeviceWrite != tc.want {
+				t.Errorf("BlockDeviceWrite = %v, want %v", a.BlockDeviceWrite, tc.want)
+			}
+		})
+	}
+}
+
 func TestSecretExfiltration(t *testing.T) {
 	cases := []struct {
 		name    string

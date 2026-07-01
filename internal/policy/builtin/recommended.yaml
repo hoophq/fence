@@ -57,6 +57,19 @@ rules:
       shell:
         chmod_world_writable: true
 
+  - id: destructive-disk-write
+    description: Destructive write to a raw disk or block device (dd, mkfs, or redirect)
+    severity: critical
+    effect: deny
+    message: >-
+      Leash blocked a destructive write to a raw disk or block device (via dd,
+      mkfs, or a redirect to /dev/sd*, /dev/nvme*, /dev/disk*, …). This wipes the
+      target irreversibly and is almost never intended from an agent. If you
+      really mean it, run the command yourself.
+    match:
+      shell:
+        block_device_write: true
+
   - id: pipe-to-shell-from-network
     description: Piping a network download directly into a shell or interpreter
     severity: high

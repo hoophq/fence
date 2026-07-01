@@ -149,6 +149,44 @@ func TestRecommendedChmodDecisions(t *testing.T) {
 	}
 }
 
+func TestRecommendedBlockDeviceDecisions(t *testing.T) {
+	e := recommendedEngine(t)
+	const cwd = "/Users/dev/project"
+
+	cases := []struct {
+		command string
+		want    Effect
+		rule    string
+	}{
+		// Destructive disk writes -> deny.
+		{"dd if=/dev/zero of=/dev/sda", EffectDeny, "destructive-disk-write"},
+		{"mkfs.ext4 /dev/sdb1", EffectDeny, "destructive-disk-write"},
+		{"sudo dd if=x of=/dev/disk2 bs=1m", EffectDeny, "destructive-disk-write"},
+		{"cat image.iso > /dev/sda", EffectDeny, "destructive-disk-write"},
+		// Writing to an image file or bit bucket -> allow (no false positives).
+		{"dd if=/dev/zero of=disk.img bs=1M count=100", EffectAllow, ""},
+		{"dd of=/dev/null", EffectAllow, ""},
+		{"dd if=in.iso of=out.iso", EffectAllow, ""},
+		{"mkfs.ext4 backup.img", EffectAllow, ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			d := e.Evaluate(Action{Kind: ActionShell, Command: tc.command, Cwd: cwd})
+			if d.Effect != tc.want {
+				t.Fatalf("Effect = %q, want %q", d.Effect, tc.want)
+			}
+			gotRule := ""
+			if d.Rule != nil {
+				gotRule = d.Rule.ID
+			}
+			if gotRule != tc.rule {
+				t.Errorf("deciding rule = %q, want %q", gotRule, tc.rule)
+			}
+		})
+	}
+}
+
 func TestRecommendedExfilDecisions(t *testing.T) {
 	e := recommendedEngine(t)
 	const cwd = "/Users/dev/project"

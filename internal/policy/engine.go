@@ -147,6 +147,9 @@ func matchShell(m *ShellMatch, a *shell.Analysis) bool {
 	if m.ChmodTarget != "" && !targetMatches(m.ChmodTarget, a.ChmodTarget) {
 		return false
 	}
+	if m.BlockDeviceWrite && !a.BlockDeviceWrite {
+		return false
+	}
 	if m.ForcePush && !a.ForcePush {
 		return false
 	}

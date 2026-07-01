@@ -48,6 +48,7 @@ type ShellMatch struct {
 	DeleteTarget       string   `yaml:"delete_target,omitempty"` // sensitive|outside_workspace|any
 	ChmodWorldWritable bool     `yaml:"chmod_world_writable,omitempty"`
 	ChmodTarget        string   `yaml:"chmod_target,omitempty"` // sensitive|outside_workspace|any
+	BlockDeviceWrite   bool     `yaml:"block_device_write,omitempty"`
 	ForcePush          bool     `yaml:"force_push,omitempty"`
 	HistoryRewrite     bool     `yaml:"history_rewrite,omitempty"`
 	PipeToShell        bool     `yaml:"pipe_to_shell,omitempty"`

@@ -10,6 +10,7 @@ package shell
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -98,6 +99,12 @@ type Analysis struct {
 	// ChmodTarget is the most severe target classification across the operands
 	// of a world-writable chmod.
 	ChmodTarget DeleteTarget
+
+	// BlockDeviceWrite is true when a command writes destructively to a raw
+	// disk / block device: `dd of=/dev/sdX`, `mkfs` on a device, or a shell
+	// redirect to one. Pseudo-devices (/dev/null, /dev/zero, /dev/stdout) and
+	// regular image files never count, so cloning to an .img is not flagged.
+	BlockDeviceWrite bool
 
 	// ForcePush is true for `git push --force`/`-f` (but not --force-with-lease).
 	ForcePush bool
@@ -188,10 +195,15 @@ func Analyze(command, cwd string) Analysis {
 				a.NetEgress = true
 			}
 		case *syntax.Redirect:
-			// `cat secret > /dev/tcp/host/port` opens a network socket.
+			// A redirect target can open a network socket (`> /dev/tcp/host/port`)
+			// or write onto a raw disk (`cat img > /dev/sda`).
 			if n.Word != nil {
-				if txt, _ := wordToString(n.Word); isDevNet(txt) {
+				txt, _ := wordToString(n.Word)
+				if isDevNet(txt) {
 					a.NetEgress = true
+				}
+				if isOutputRedirect(n.Op) && isBlockDevice(txt) {
+					a.BlockDeviceWrite = true
 				}
 			}
 		case *syntax.BinaryCmd:
@@ -235,6 +247,24 @@ func (a *Analysis) inspectCommand(name string, args []string, cwd string) {
 		}
 	case "git":
 		a.inspectGit(args)
+	case "dd":
+		// dd writes to the file named by its `of=` operand. Flag only when that
+		// target is a real block device — never /dev/null, /dev/zero, or a
+		// regular image file (cloning a disk *to* a file is safe).
+		for _, arg := range args {
+			if dev, ok := strings.CutPrefix(arg, "of="); ok && isBlockDevice(dev) {
+				a.BlockDeviceWrite = true
+			}
+		}
+	}
+	// mkfs / mkfs.<fstype> formats whichever device path it is handed; making a
+	// filesystem in an image file (a non-/dev path) is left alone.
+	if name == "mkfs" || strings.HasPrefix(name, "mkfs.") {
+		for _, arg := range args {
+			if !strings.HasPrefix(arg, "-") && isBlockDevice(arg) {
+				a.BlockDeviceWrite = true
+			}
+		}
 	}
 }
 
@@ -679,6 +709,38 @@ func hasListenFlag(args []string) bool {
 // used to open a raw network connection (e.g. `cat secret > /dev/tcp/host/port`).
 func isDevNet(word string) bool {
 	return strings.Contains(word, "/dev/tcp/") || strings.Contains(word, "/dev/udp/")
+}
+
+// blockDeviceRe matches a raw disk or partition node under /dev — the kind of
+// target a destructive dd/mkfs write (or redirect) would irreversibly wipe. It
+// spans Linux (sd/hd/vd/xvd disks, nvme, mmcblk) and macOS (disk/rdisk).
+// Pseudo-devices such as /dev/null, /dev/zero, /dev/random and /dev/stdout
+// deliberately do NOT match, so writing to a bit bucket or an image file is
+// never flagged.
+var blockDeviceRe = regexp.MustCompile(`^/dev/(` +
+	`(s|h|v|xv)d[a-z]+[0-9]*` + // sda, sdb1, hda, vda, xvda2
+	`|nvme[0-9]+n[0-9]+(p[0-9]+)?` + // nvme0n1, nvme0n1p2
+	`|mmcblk[0-9]+(p[0-9]+)?` + // mmcblk0, mmcblk0p1
+	`|r?disk[0-9]+(s[0-9]+)*` + // macOS disk2, rdisk2, disk0s1
+	`)$`)
+
+// isBlockDevice reports whether path names a raw disk / block-device node that a
+// destructive write would wipe. The word is already resolved from the AST (a dd
+// `of=` value, an mkfs operand, or a redirect target), so this is a semantic
+// classification of that path — not a substring scan of the raw command.
+func isBlockDevice(path string) bool {
+	return blockDeviceRe.MatchString(strings.TrimSpace(path))
+}
+
+// isOutputRedirect reports whether a redirect operator writes to its target
+// (`>`, `>>`, `>|`, `&>`, `&>>`) rather than reading from it. Input and
+// here-doc redirects can never wipe a device, so they are excluded.
+func isOutputRedirect(op syntax.RedirOperator) bool {
+	switch op {
+	case syntax.RdrOut, syntax.AppOut, syntax.ClbOut, syntax.RdrAll, syntax.AppAll:
+		return true
+	}
+	return false
 }
 
 // wordToString reconstructs the textual value of a word. Parameter expansions
