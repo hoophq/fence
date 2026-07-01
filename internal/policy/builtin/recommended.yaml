@@ -93,6 +93,18 @@ rules:
       shell:
         non_registry_install: true
 
+  - id: establish-persistence-command
+    description: Installing a scheduled/auto-start job via crontab, launchctl, or systemctl
+    severity: high
+    effect: ask
+    message: >-
+      This installs a scheduled or auto-start job (crontab, launchctl load, or
+      systemctl enable) that runs automatically later — a common persistence
+      mechanism. Confirm this is intended.
+    match:
+      shell:
+        persistence_install: true
+
   - id: secret-exfiltration-high
     description: Reading a private key or cloud credential and sending it to the network
     severity: critical
@@ -215,6 +227,30 @@ rules:
         - "~/.bash_profile"
         - "~/.zprofile"
         - "**/.git/hooks/**"
+
+  - id: write-persistence-agent
+    description: Installing a scheduled or auto-start job (cron, launchd, systemd)
+    severity: high
+    effect: ask
+    message: >-
+      An edit targets a scheduler or auto-start location (cron, launchd, or
+      systemd). Code placed here runs automatically — a common persistence
+      mechanism. Confirm this is intended.
+    match:
+      tool: [file_write]
+      path_glob:
+        - "~/Library/LaunchAgents/**"
+        - "/Library/LaunchAgents/**"
+        - "/Library/LaunchDaemons/**"
+        - "~/.config/systemd/user/**"
+        - "/etc/systemd/system/**"
+        - "/etc/crontab"
+        - "/etc/cron.d/**"
+        - "/etc/cron.hourly/**"
+        - "/etc/cron.daily/**"
+        - "/etc/cron.weekly/**"
+        - "/etc/cron.monthly/**"
+        - "/var/spool/cron/**"
 
   - id: inject-package-lifecycle-hook
     description: Adding an install lifecycle hook to a package manifest (package.json / setup.py)

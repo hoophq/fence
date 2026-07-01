@@ -140,6 +140,12 @@ type Analysis struct {
 	// review. Plain registry installs (`npm install lodash`) never count.
 	NonRegistryInstall bool
 
+	// PersistenceInstall is true when a command installs a scheduled or
+	// auto-start job that runs later — a crontab install, `launchctl
+	// load`/`bootstrap`, or `systemctl enable`. Read-only forms (`crontab -l`,
+	// `launchctl list`) never count.
+	PersistenceInstall bool
+
 	// Raw is the original command text.
 	Raw string
 }
@@ -304,6 +310,19 @@ func (a *Analysis) inspectCommand(name string, args []string, cwd string) {
 			if dev, ok := strings.CutPrefix(arg, "of="); ok && isBlockDevice(dev) {
 				a.BlockDeviceWrite = true
 			}
+		}
+	case "crontab":
+		if crontabInstalls(args) {
+			a.PersistenceInstall = true
+		}
+	case "launchctl":
+		switch firstNonFlag(args) {
+		case "load", "bootstrap":
+			a.PersistenceInstall = true
+		}
+	case "systemctl":
+		if firstNonFlag(args) == "enable" {
+			a.PersistenceInstall = true
 		}
 	}
 	// mkfs / mkfs.<fstype> formats whichever device path it is handed; making a
@@ -484,6 +503,47 @@ func hasArchiveExt(s string) bool {
 		}
 	}
 	return false
+}
+
+// firstNonFlag returns the first argument that is not an option flag — a
+// command's subcommand (e.g. `enable` in `systemctl --user enable x`).
+func firstNonFlag(args []string) string {
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			return arg
+		}
+	}
+	return ""
+}
+
+// crontabInstalls reports whether a crontab invocation *installs* a crontab —
+// from a file operand or stdin (`-`) — rather than listing (`-l`), editing
+// interactively (`-e`), or removing it (`-r`). Installing schedules code to run
+// later, a persistence vector; listing is read-only.
+func crontabInstalls(args []string) bool {
+	install, list := false, false
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		switch arg {
+		case "-l":
+			list = true
+		case "-u":
+			skipNext = true // its value is a username, not a file
+		case "-r", "-e", "-i":
+			// operation flags that do not install from a file
+		case "-":
+			install = true // read the new crontab from stdin
+		default:
+			if !strings.HasPrefix(arg, "-") {
+				install = true // a file operand installs a crontab
+			}
+		}
+	}
+	return install && !list
 }
 
 // resolveCommand returns the effective command name and its arguments, peeling

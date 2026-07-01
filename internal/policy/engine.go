@@ -177,6 +177,9 @@ func matchShell(m *ShellMatch, a *shell.Analysis) bool {
 	if m.NonRegistryInstall && !a.NonRegistryInstall {
 		return false
 	}
+	if m.PersistenceInstall && !a.PersistenceInstall {
+		return false
+	}
 	if m.SecretExfil != "" {
 		// Exfiltration = a secret is read AND data leaves over the network.
 		if !a.NetEgress || a.SecretRead == shell.SecretNone {

