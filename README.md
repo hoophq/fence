@@ -82,7 +82,10 @@ where it came from.
 brew install hoophq/tap/leash
 ```
 
-> Both land with the first tagged release.
+```bash
+# npx — macOS / Linux, no install
+npx @hoophq/leash
+```
 
 ## Quickstart — Claude Code
 
