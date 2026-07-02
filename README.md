@@ -80,9 +80,6 @@ where it came from.
 ```bash
 # Homebrew — macOS
 brew install hoophq/tap/leash
-
-# npx — macOS / Linux, no install
-npx @hoophq/leash
 ```
 
 > Both land with the first tagged release.
@@ -90,12 +87,15 @@ npx @hoophq/leash
 ## Quickstart — Claude Code
 
 ```bash
-leash init            # add the PreToolUse hook to .claude/settings.json
-leash init --global   # …or once, for every project
+leash init --global   # add the PreToolUse hook to .claude/settings.json, for every project
 ```
 
 Start a Claude Code session and Leash is live. Ask the agent for something
 reckless — it gets stopped, or asked to confirm.
+
+```bash
+claude
+```
 
 **→ [All CLI commands](docs/cli.md)** — `init`, `check` (test a verdict without
 an agent), `hook`, and `version`.
