@@ -917,6 +917,12 @@ func classifySecretPath(s string) SecretConfidence {
 	if base == ".env" || strings.HasPrefix(base, ".env.") {
 		return SecretEnv
 	}
+	// Shell rc/profile files routinely carry exported API tokens; like .env they
+	// are read for legitimate reasons all the time, so they rate ask-tier only.
+	switch base {
+	case ".zshrc", ".bashrc", ".zprofile", ".bash_profile", ".profile", ".zshenv", ".zlogin", ".bash_login":
+		return SecretEnv
+	}
 	return SecretNone
 }
 
