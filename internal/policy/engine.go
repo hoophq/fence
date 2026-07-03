@@ -15,6 +15,7 @@ import (
 // Engine evaluates Actions against an ordered set of rules.
 type Engine struct {
 	rules         []Rule
+	packs         []string
 	defaultEffect Effect
 	home          string
 	warnings      []string
@@ -45,6 +46,7 @@ func NewEngine(packs ...*Rulepack) *Engine {
 		if name == "" {
 			name = "(unnamed pack)"
 		}
+		e.packs = append(e.packs, name)
 		start := len(e.rules)
 		e.rules = append(e.rules, p.Rules...)
 		for i := start; i < len(e.rules); i++ {
@@ -88,6 +90,16 @@ func NewEngine(packs ...*Rulepack) *Engine {
 // override that referenced a rule id no rulepack defines).
 func (e *Engine) Warnings() []string {
 	return e.warnings
+}
+
+// PackCount returns how many rulepacks the engine was built from.
+func (e *Engine) PackCount() int {
+	return len(e.packs)
+}
+
+// RuleCount returns the number of active rules across all packs.
+func (e *Engine) RuleCount() int {
+	return len(e.rules)
 }
 
 // Evaluate returns the decision for an action. When several rules match, the

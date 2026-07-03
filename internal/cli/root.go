@@ -33,7 +33,7 @@ func NewRootCommand(version string) *cobra.Command {
 
 	root.AddCommand(
 		newCheckCommand(),
-		newHookCommand(),
+		newHookCommand(version),
 		newInitCommand(),
 		newAddCommand(),
 		newSearchCommand(),
@@ -49,7 +49,7 @@ func NewRootCommand(version string) *cobra.Command {
 // project rulepack (./.leash.yaml), and an explicit --rules file if given.
 // Later packs layer on top of earlier ones, and any pack can pull others in
 // with extends:.
-func buildEngine() (*policy.Engine, error) {
+func buildEngine() (*policy.Engine, int, error) {
 	var st *store.Store
 	dir, err := store.DefaultDir()
 	if err != nil {
@@ -63,16 +63,19 @@ func buildEngine() (*policy.Engine, error) {
 // buildEngineWithStore is buildEngine with its inputs injected for tests.
 // Ambient sources — installed packs and the discovered .leash.yaml — degrade:
 // one that fails to load is skipped with a warning so the rest keep
-// protecting. The explicit --rules file stays a hard error: the user asked
-// for it by name.
-func buildEngineWithStore(st *store.Store, rulesFile string, errw io.Writer) (*policy.Engine, error) {
+// protecting. The int returned counts those skipped sources, so the session
+// banner can say protection is thinner than configured. The explicit --rules
+// file stays a hard error: the user asked for it by name.
+func buildEngineWithStore(st *store.Store, rulesFile string, errw io.Writer) (*policy.Engine, int, error) {
 	res := policy.NewResolver(locator(st))
 	var warnings []string
+	failed := 0
 
 	if st != nil {
 		names, err := st.List()
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("reading installed packs: %v (skipped)", err))
+			failed++
 		}
 		for _, name := range names {
 			path, ok := st.Locate(name)
@@ -81,6 +84,7 @@ func buildEngineWithStore(st *store.Store, rulesFile string, errw io.Writer) (*p
 			}
 			if err := res.Add(path); err != nil {
 				warnings = append(warnings, fmt.Sprintf("installed pack %q: %v (skipped)", name, err))
+				failed++
 			}
 		}
 	}
@@ -88,12 +92,13 @@ func buildEngineWithStore(st *store.Store, rulesFile string, errw io.Writer) (*p
 	if discovered := discoverProjectRules(); discovered != "" {
 		if err := res.Add(discovered); err != nil {
 			warnings = append(warnings, fmt.Sprintf("%v (skipped)", err))
+			failed++
 		}
 	}
 
 	if rulesFile != "" {
 		if err := res.Add(rulesFile); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
 
@@ -104,7 +109,7 @@ func buildEngineWithStore(st *store.Store, rulesFile string, errw io.Writer) (*p
 	for _, w := range warnings {
 		fmt.Fprintf(errw, "leash: %s\n", w)
 	}
-	return engine, nil
+	return engine, failed, nil
 }
 
 // locator adapts a possibly-nil store to a policy.LocateFunc.

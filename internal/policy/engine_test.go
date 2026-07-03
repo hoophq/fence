@@ -298,6 +298,29 @@ func TestRecommendedPersistenceDecisions(t *testing.T) {
 	}
 }
 
+func TestEnginePackAndRuleCounts(t *testing.T) {
+	a := &Rulepack{Name: "a", Rules: []Rule{
+		{ID: "a1", Effect: EffectDeny, Match: Match{Regex: "x"}},
+		{ID: "a2", Effect: EffectAsk, Match: Match{Regex: "y"}},
+	}}
+	b := &Rulepack{Name: "b", Rules: []Rule{
+		{ID: "b1", Effect: EffectWarn, Match: Match{Regex: "z"}},
+	}}
+	for _, p := range []*Rulepack{a, b} {
+		if err := p.validate(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	e := NewEngine(a, nil, b) // a nil pack is skipped, not counted
+	if got := e.PackCount(); got != 2 {
+		t.Errorf("PackCount() = %d, want 2", got)
+	}
+	if got := e.RuleCount(); got != 3 {
+		t.Errorf("RuleCount() = %d, want 3", got)
+	}
+}
+
 func TestDenyOverridesAsk(t *testing.T) {
 	// A command that trips both a deny rule and an ask rule must resolve to deny.
 	pack := &Rulepack{

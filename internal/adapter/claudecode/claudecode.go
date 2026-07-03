@@ -96,9 +96,13 @@ func writeContent(tool string, ti toolInput) string {
 	return ""
 }
 
-// hookOutput is the PreToolUse response envelope.
+// hookOutput is the hook response envelope. SystemMessage is a line Claude
+// Code shows to the user in the chat; HookSpecificOutput carries the
+// permission decision and is omitted entirely when Leash has no opinion
+// (warn feedback, verbose allow feedback, the session banner).
 type hookOutput struct {
-	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
+	SystemMessage      string              `json:"systemMessage,omitempty"`
+	HookSpecificOutput *hookSpecificOutput `json:"hookSpecificOutput,omitempty"`
 }
 
 type hookSpecificOutput struct {
@@ -107,44 +111,118 @@ type hookSpecificOutput struct {
 	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
 }
 
-// WriteDecision emits the Claude Code response for a decision on w, and returns
-// any human-readable note that should be surfaced on stderr (used for "warn",
-// which allows the action but informs the user).
+// WriteDecision emits the Claude Code response for a decision on w.
 //
-//   - deny  -> permissionDecision "deny"  (blocks the tool call)
-//   - ask   -> permissionDecision "ask"   (forces a user confirmation prompt)
-//   - warn  -> no decision emitted; note returned for stderr; action proceeds
-//   - allow -> nothing emitted; normal permission flow continues
-func WriteDecision(w io.Writer, d policy.Decision) (note string, err error) {
-	reason := decisionReason(d)
+//   - deny  -> permissionDecision "deny"  (blocks the tool call) + chat notice
+//   - ask   -> permissionDecision "ask"   (forces a user confirmation prompt) + chat notice
+//   - warn  -> no decision emitted; chat notice only; action proceeds
+//   - allow -> nothing emitted so the user's own permission flow is untouched;
+//     with verbose, a chat notice (still no decision) confirms Leash looked
+//
+// Emitting an explicit "allow" decision would auto-approve the call and bypass
+// the user's permission settings, so Leash never does — even in verbose mode.
+func WriteDecision(w io.Writer, d policy.Decision, verbose bool) error {
 	switch d.Effect {
 	case policy.EffectDeny:
-		return "", emit(w, "deny", reason)
+		return emit(w, hookOutput{
+			SystemMessage:      systemMessage("blocked this", d),
+			HookSpecificOutput: preToolUse("deny", decisionReason(d)),
+		})
 	case policy.EffectAsk:
-		return "", emit(w, "ask", reason)
+		return emit(w, hookOutput{
+			SystemMessage:      systemMessage("is asking first", d),
+			HookSpecificOutput: preToolUse("ask", decisionReason(d)),
+		})
 	case policy.EffectWarn:
-		return reason, nil
+		return emit(w, hookOutput{SystemMessage: systemMessage("flagged this", d)})
 	default:
-		// allow: stay silent so we don't override the user's own settings.
-		return "", nil
+		if !verbose {
+			return nil
+		}
+		return emit(w, hookOutput{SystemMessage: systemMessage("allowed this", d)})
 	}
 }
 
-func emit(w io.Writer, decision, reason string) error {
-	out := hookOutput{HookSpecificOutput: hookSpecificOutput{
+// WriteSessionStart emits the SessionStart response: a banner telling the user
+// Leash is active — and, when ambient rulepacks failed to load, that the
+// session runs with less than the configured protection. It carries no
+// permission decision and adds nothing to the model's context (plain stdout on
+// SessionStart would).
+func WriteSessionStart(w io.Writer, version string, packs, rules, failed int) error {
+	name := "Leash"
+	if version != "" {
+		if version[0] >= '0' && version[0] <= '9' {
+			version = "v" + version
+		}
+		name += " " + version
+	}
+	msg := fmt.Sprintf("🐕 %s is guarding this session (%s, %s)",
+		name, plural(packs, "pack"), plural(rules, "rule"))
+	if failed > 0 {
+		msg += fmt.Sprintf(" — ⚠️ %s failed to load", plural(failed, "rulepack"))
+	}
+	return emit(w, hookOutput{SystemMessage: msg})
+}
+
+// WriteSessionStartDegraded emits the SessionStart banner for the case where
+// the rules could not be loaded: the hook fails open, so the honest message is
+// that this session is not being screened.
+func WriteSessionStartDegraded(w io.Writer) error {
+	return emit(w, hookOutput{
+		SystemMessage: "🐕 Leash could not load its rules — tool calls in this session are NOT being screened (see stderr in the transcript)",
+	})
+}
+
+func emit(w io.Writer, out hookOutput) error {
+	return json.NewEncoder(w).Encode(out)
+}
+
+func preToolUse(decision, reason string) *hookSpecificOutput {
+	return &hookSpecificOutput{
 		HookEventName:            "PreToolUse",
 		PermissionDecision:       decision,
 		PermissionDecisionReason: reason,
-	}}
-	return json.NewEncoder(w).Encode(out)
+	}
+}
+
+// systemMessage builds the one-line chat notice for a decision, e.g.
+// "🐕 Leash is asking first: Force-push detected. … (rule: git-force-push)".
+func systemMessage(verb string, d policy.Decision) string {
+	// Rule messages may be multi-line YAML blocks; a chat notice is one line.
+	reason := strings.Join(strings.Fields(decisionReason(d)), " ")
+
+	var b strings.Builder
+	b.WriteString("🐕 ")
+	switch {
+	case reason == "":
+		b.WriteString("Leash ")
+		b.WriteString(verb)
+	// Many rule messages already speak as Leash ("Leash blocked a recursive
+	// delete …"); prefixing the verb again would stutter.
+	case len(reason) >= 6 && strings.EqualFold(reason[:6], "leash "):
+		b.WriteString(reason)
+	default:
+		b.WriteString("Leash ")
+		b.WriteString(verb)
+		b.WriteString(": ")
+		b.WriteString(reason)
+	}
+	if d.Rule != nil && d.Rule.ID != "" {
+		fmt.Fprintf(&b, " (rule: %s)", d.Rule.ID)
+	}
+	return b.String()
+}
+
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 func decisionReason(d policy.Decision) string {
 	if d.Rule == nil {
 		return ""
 	}
-	if d.Rule.Message != "" {
-		return d.Rule.Message
-	}
-	return d.Rule.Description
+	return d.Rule.Text()
 }

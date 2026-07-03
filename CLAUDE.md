@@ -30,7 +30,10 @@ central audit, and approval workflows out of scope.
   semantic facts (recursive-delete + target class, force-push, history-rewrite,
   net→shell pipe). **This is the differentiator** — see Conventions.
 - `internal/adapter/<agent>/` — translate one agent's tool call ⇄ neutral `Action`.
-  `claudecode` (Claude Code PreToolUse) is the first adapter.
+  `claudecode` (Claude Code PreToolUse + the SessionStart banner) is the first
+  adapter. Decisions and chat notices ride the same JSON envelope; an explicit
+  "allow" decision is never emitted (it would bypass the user's own permission
+  settings).
 - `internal/store/` — the user-level state dir (`~/.leash`): packs installed via
   `leash add` (the packs dir is the source of truth) + `packs.lock.json` metadata.
 - `internal/registry/` — fetch + sha256-verify packs from a static index

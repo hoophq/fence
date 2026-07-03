@@ -38,9 +38,12 @@ func chdirEmpty(t *testing.T) string {
 
 func TestBuildEngineNoStoreStillProtects(t *testing.T) {
 	chdirEmpty(t)
-	e, err := buildEngineWithStore(nil, "", &bytes.Buffer{})
+	e, failed, err := buildEngineWithStore(nil, "", &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if failed != 0 {
+		t.Errorf("failed sources = %d, want 0", failed)
 	}
 	if got := evalShell(t, e, "rm -rf ~"); got != policy.EffectDeny {
 		t.Fatalf("rm -rf ~ = %q, want deny", got)
@@ -61,7 +64,7 @@ rules:
 		t.Fatal(err)
 	}
 
-	e, err := buildEngineWithStore(st, "", &bytes.Buffer{})
+	e, _, err := buildEngineWithStore(st, "", &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,9 +94,12 @@ rules:
 	writeTestFile(t, st.PackPath("broken"), "rules:\n  - id: x\n    effect: nope\n")
 
 	var stderr bytes.Buffer
-	e, err := buildEngineWithStore(st, "", &stderr)
+	e, failed, err := buildEngineWithStore(st, "", &stderr)
 	if err != nil {
 		t.Fatalf("a corrupt installed pack must not abort the engine: %v", err)
+	}
+	if failed != 1 {
+		t.Errorf("failed sources = %d, want 1 (the corrupt pack)", failed)
 	}
 	if !strings.Contains(stderr.String(), "broken") {
 		t.Fatalf("want a warning naming the broken pack, got %q", stderr.String())
@@ -112,9 +118,12 @@ func TestBuildEngineCorruptProjectRulesDegrade(t *testing.T) {
 	writeTestFile(t, filepath.Join(dir, ".leash.yaml"), "rules:\n  - id: x\n    effect: nope\n")
 
 	var stderr bytes.Buffer
-	e, err := buildEngineWithStore(nil, "", &stderr)
+	e, failed, err := buildEngineWithStore(nil, "", &stderr)
 	if err != nil {
 		t.Fatalf("a corrupt .leash.yaml must not abort the engine: %v", err)
+	}
+	if failed != 1 {
+		t.Errorf("failed sources = %d, want 1 (the corrupt .leash.yaml)", failed)
 	}
 	if stderr.Len() == 0 {
 		t.Fatal("want a warning about the corrupt .leash.yaml")
@@ -127,7 +136,7 @@ func TestBuildEngineCorruptProjectRulesDegrade(t *testing.T) {
 func TestBuildEngineCorruptRulesFlagIsLoud(t *testing.T) {
 	chdirEmpty(t)
 	bad := writeTestFile(t, filepath.Join(t.TempDir(), "bad.yaml"), "rules:\n  - id: x\n    effect: nope\n")
-	if _, err := buildEngineWithStore(nil, bad, &bytes.Buffer{}); err == nil {
+	if _, _, err := buildEngineWithStore(nil, bad, &bytes.Buffer{}); err == nil {
 		t.Fatal("an explicit --rules file that fails to load must be an error")
 	}
 }
@@ -145,7 +154,7 @@ func TestBuildEngineLayeringOrder(t *testing.T) {
 	// …and the --rules file has the last word: deny.
 	rules := writeTestFile(t, filepath.Join(t.TempDir(), "rules.yaml"), "name: flag\noverrides:\n  git-force-push: deny\n")
 
-	e, err := buildEngineWithStore(st, rules, &bytes.Buffer{})
+	e, _, err := buildEngineWithStore(st, rules, &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +183,7 @@ rules:
 	writeTestFile(t, filepath.Join(dir, ".leash.yaml"), "name: project\nextends: [base]\noverrides:\n  base-marker: ask\n")
 
 	var stderr bytes.Buffer
-	e, err := buildEngineWithStore(st, "", &stderr)
+	e, _, err := buildEngineWithStore(st, "", &stderr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +200,7 @@ func TestBuildEngineMissingExtendsTargetWarns(t *testing.T) {
 	writeTestFile(t, filepath.Join(dir, ".leash.yaml"), "name: project\nextends: [ghost]\n")
 
 	var stderr bytes.Buffer
-	e, err := buildEngineWithStore(store.Open(t.TempDir()), "", &stderr)
+	e, _, err := buildEngineWithStore(store.Open(t.TempDir()), "", &stderr)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,15 +9,26 @@ flag ([rulepack reference](rules.md)).
 ## `leash init`
 
 Wire Leash into Claude Code: it adds a `PreToolUse` hook to the settings so
-every tool call is inspected before it runs.
+every tool call is inspected before it runs, and a `SessionStart` hook that
+shows a banner in the chat when a session begins — proof Leash is active,
+with the pack and rule counts.
 
 ```bash
 leash init            # project — ./.claude/settings.json
 leash init --global   # global  — ~/.claude/settings.json
+leash init --verbose  # also show a 🐕 chat notice for *allowed* tool calls
 ```
 
-Idempotent and non-destructive: it preserves existing settings and won't add the
-hook twice. Restart Claude Code (or start a new session) to activate it.
+Deny, ask, and warn decisions always show a `🐕` notice in the chat naming the
+rule that fired; `--verbose` adds one for allowed calls too (noisy, but useful
+for a demo or for building trust). Re-run `init` without the flag to switch
+back — it always converges the hook commands, which is also how a stale binary
+path gets healed after an upgrade. Flags init doesn't manage (say, a
+hand-added `--rules`) survive that convergence.
+
+Idempotent and non-destructive: it preserves existing settings (including a
+matcher you've customized) and won't add the hooks twice. Restart Claude Code
+(or start a new session) to activate them.
 
 ## `leash search`
 
@@ -111,8 +122,19 @@ echo '{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}' \
   | leash hook claude-code
 ```
 
-It always exits 0 and **fails open**: if the input can't be understood, the tool
-call proceeds as if Leash weren't there.
+Deny/ask/warn responses carry a `systemMessage` so the decision is visible in
+the chat. With `--verbose`, allowed calls get a notice too — but never an
+explicit allow decision, so your own permission settings still apply.
+
+`leash hook claude-code session-start` is the `SessionStart` entrypoint: it
+prints the "guarding this session" banner (wired in by `leash init` as well).
+If an installed pack or `.leash.yaml` fails to load, the banner says so —
+`⚠️ 1 rulepack failed to load` — instead of silently showing a lower count;
+run any leash command in a terminal to see the load warnings.
+
+Every variant always exits 0 and **fails open**: if the input can't be
+understood or the rules can't load, the tool call proceeds as if Leash weren't
+there — and the session banner says so instead of pretending you're covered.
 
 ## `leash version`
 

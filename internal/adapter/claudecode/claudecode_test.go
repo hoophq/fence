@@ -1,6 +1,8 @@
 package claudecode
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -64,5 +66,226 @@ func TestParseActionContent(t *testing.T) {
 				t.Errorf("Command = %q, want %q", a.Command, tc.wantCommand)
 			}
 		})
+	}
+}
+
+// decode parses a hook response for assertions. Absent keys stay absent — the
+// tests below rely on that to prove no permission decision was emitted.
+func decode(t *testing.T, raw string) map[string]any {
+	t.Helper()
+	var out map[string]any
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, raw)
+	}
+	return out
+}
+
+func TestWriteDecision(t *testing.T) {
+	rule := &policy.Rule{ID: "rm-recursive-home", Message: "Recursive delete of your home directory"}
+
+	cases := []struct {
+		name    string
+		d       policy.Decision
+		verbose bool
+
+		wantEmpty    bool   // nothing at all on stdout
+		wantDecision string // hookSpecificOutput.permissionDecision ("" = key must be absent)
+		wantReason   string
+		wantMsgParts []string // substrings the systemMessage must contain
+	}{
+		{
+			name:         "deny blocks and announces",
+			d:            policy.Decision{Effect: policy.EffectDeny, Rule: rule},
+			wantDecision: "deny",
+			wantReason:   "Recursive delete of your home directory",
+			wantMsgParts: []string{"Leash blocked this", "Recursive delete", "(rule: rm-recursive-home)"},
+		},
+		{
+			name:         "ask prompts and announces",
+			d:            policy.Decision{Effect: policy.EffectAsk, Rule: rule},
+			wantDecision: "ask",
+			wantReason:   "Recursive delete of your home directory",
+			wantMsgParts: []string{"Leash is asking first"},
+		},
+		{
+			name:         "warn announces without a decision so the call proceeds",
+			d:            policy.Decision{Effect: policy.EffectWarn, Rule: rule},
+			wantMsgParts: []string{"Leash flagged this", "(rule: rm-recursive-home)"},
+		},
+		{
+			name:      "allow stays silent by default",
+			d:         policy.Decision{Effect: policy.EffectAllow},
+			wantEmpty: true,
+		},
+		{
+			name:         "verbose allow announces without a decision",
+			d:            policy.Decision{Effect: policy.EffectAllow},
+			verbose:      true,
+			wantMsgParts: []string{"Leash allowed this"},
+		},
+		{
+			name:         "deny from a pack default has no rule to cite",
+			d:            policy.Decision{Effect: policy.EffectDeny},
+			wantDecision: "deny",
+			wantMsgParts: []string{"Leash blocked this"},
+		},
+		{
+			name: "multi-line rule message collapses to one chat line",
+			d: policy.Decision{Effect: policy.EffectDeny, Rule: &policy.Rule{
+				ID:      "multi",
+				Message: "line one\n  line two",
+			}},
+			wantDecision: "deny",
+			wantReason:   "line one\n  line two",
+			wantMsgParts: []string{"line one line two"},
+		},
+		{
+			name: "a reason that already speaks as Leash is not double-branded",
+			d: policy.Decision{Effect: policy.EffectDeny, Rule: &policy.Rule{
+				ID:      "destructive-delete-sensitive",
+				Message: "Leash blocked a recursive delete aimed at a sensitive location.",
+			}},
+			wantDecision: "deny",
+			wantReason:   "Leash blocked a recursive delete aimed at a sensitive location.",
+			wantMsgParts: []string{"🐕 Leash blocked a recursive delete"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := WriteDecision(&buf, tc.d, tc.verbose); err != nil {
+				t.Fatalf("WriteDecision: %v", err)
+			}
+
+			if tc.wantEmpty {
+				if buf.Len() != 0 {
+					t.Fatalf("want no output, got %s", buf.String())
+				}
+				return
+			}
+
+			out := decode(t, buf.String())
+
+			msg, _ := out["systemMessage"].(string)
+			for _, part := range tc.wantMsgParts {
+				if !strings.Contains(msg, part) {
+					t.Errorf("systemMessage = %q, want it to contain %q", msg, part)
+				}
+			}
+			if strings.Contains(msg, "\n") {
+				t.Errorf("systemMessage must be a single line, got %q", msg)
+			}
+			if n := strings.Count(msg, "Leash"); n != 1 {
+				t.Errorf("systemMessage should name Leash exactly once, got %d in %q", n, msg)
+			}
+
+			hso, hasHSO := out["hookSpecificOutput"].(map[string]any)
+			if tc.wantDecision == "" {
+				// The load-bearing guard: no permission decision may leak. An
+				// explicit "allow" would bypass the user's own permission
+				// settings; an empty one is protocol garbage.
+				if hasHSO {
+					t.Fatalf("hookSpecificOutput must be absent, got %v", out["hookSpecificOutput"])
+				}
+				if strings.Contains(buf.String(), "permissionDecision") {
+					t.Fatalf("output must not mention permissionDecision: %s", buf.String())
+				}
+				return
+			}
+			if !hasHSO {
+				t.Fatalf("missing hookSpecificOutput in %s", buf.String())
+			}
+			if got := hso["permissionDecision"]; got != tc.wantDecision {
+				t.Errorf("permissionDecision = %v, want %q", got, tc.wantDecision)
+			}
+			if got, _ := hso["permissionDecisionReason"].(string); got != tc.wantReason {
+				t.Errorf("permissionDecisionReason = %q, want %q", got, tc.wantReason)
+			}
+			if got := hso["hookEventName"]; got != "PreToolUse" {
+				t.Errorf("hookEventName = %v, want PreToolUse", got)
+			}
+		})
+	}
+}
+
+func TestWriteSessionStart(t *testing.T) {
+	cases := []struct {
+		name    string
+		version string
+		packs   int
+		rules   int
+		failed  int
+		want    []string
+	}{
+		{
+			name:    "release version gets a v prefix",
+			version: "0.0.4", packs: 3, rules: 42,
+			want: []string{"Leash v0.0.4", "3 packs", "42 rules", "guarding this session"},
+		},
+		{
+			name:    "git-describe version is kept as-is",
+			version: "v0.0.4-2-gabc1234", packs: 2, rules: 40,
+			want: []string{"Leash v0.0.4-2-gabc1234"},
+		},
+		{
+			name:    "dev build and singular counts",
+			version: "dev", packs: 1, rules: 1,
+			want: []string{"Leash dev", "1 pack,", "1 rule)"},
+		},
+		{
+			name:  "no version at all",
+			packs: 1, rules: 34,
+			want: []string{"🐕 Leash is guarding this session"},
+		},
+		{
+			name:    "a failed ambient pack is called out",
+			version: "0.0.4", packs: 1, rules: 19, failed: 1,
+			want: []string{"⚠️ 1 rulepack failed to load"},
+		},
+		{
+			name:    "several failed packs pluralize",
+			version: "0.0.4", packs: 1, rules: 19, failed: 2,
+			want: []string{"2 rulepacks failed to load"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := WriteSessionStart(&buf, tc.version, tc.packs, tc.rules, tc.failed); err != nil {
+				t.Fatalf("WriteSessionStart: %v", err)
+			}
+			out := decode(t, buf.String())
+			msg, _ := out["systemMessage"].(string)
+			for _, part := range tc.want {
+				if !strings.Contains(msg, part) {
+					t.Errorf("systemMessage = %q, want it to contain %q", msg, part)
+				}
+			}
+			// A clean load must not hedge the banner.
+			if tc.failed == 0 && strings.Contains(msg, "failed to load") {
+				t.Errorf("clean banner mentions failures: %q", msg)
+			}
+			// A banner must never carry a permission decision.
+			if _, ok := out["hookSpecificOutput"]; ok {
+				t.Fatalf("banner must not include hookSpecificOutput: %s", buf.String())
+			}
+		})
+	}
+}
+
+func TestWriteSessionStartDegraded(t *testing.T) {
+	var buf bytes.Buffer
+	if err := WriteSessionStartDegraded(&buf); err != nil {
+		t.Fatalf("WriteSessionStartDegraded: %v", err)
+	}
+	out := decode(t, buf.String())
+	msg, _ := out["systemMessage"].(string)
+	if !strings.Contains(msg, "NOT being screened") {
+		t.Errorf("degraded banner must say the session is unscreened, got %q", msg)
+	}
+	if _, ok := out["hookSpecificOutput"]; ok {
+		t.Fatalf("degraded banner must not include hookSpecificOutput: %s", buf.String())
 	}
 }

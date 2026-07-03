@@ -24,6 +24,15 @@ type Rule struct {
 // an engine pools the rule — pack authors cannot set it in YAML.
 func (r *Rule) Pack() string { return r.pack }
 
+// Text returns the rule's user-facing explanation: the message written for
+// when the rule fires, else the description.
+func (r *Rule) Text() string {
+	if r.Message != "" {
+		return r.Message
+	}
+	return r.Description
+}
+
 // Match is the condition of a rule. An empty Match never matches (rules must be
 // specific); a non-empty Match requires all of its set conditions to hold.
 type Match struct {

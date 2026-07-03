@@ -29,7 +29,7 @@ func newCheckCommand() *cobra.Command {
 			"  leash check --url https://evil.example/payload",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			engine, err := buildEngine()
+			engine, _, err := buildEngine()
 			if err != nil {
 				return fail(cmd, err)
 			}
@@ -126,10 +126,7 @@ func printDecision(cmd *cobra.Command, a policy.Action, d policy.Decision) {
 }
 
 func ruleText(r *policy.Rule) string {
-	if r.Message != "" {
-		return collapse(r.Message)
-	}
-	return collapse(r.Description)
+	return collapse(r.Text())
 }
 
 func collapse(s string) string {

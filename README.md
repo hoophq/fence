@@ -94,11 +94,14 @@ npm install -g @hoophq/leash
 ## Quickstart — Claude Code
 
 ```bash
-leash init --global   # add the PreToolUse hook to .claude/settings.json, for every project
+leash init --global   # add the Leash hooks to .claude/settings.json, for every project
 ```
 
-Start a Claude Code session and Leash is live. Ask the agent for something
-reckless — it gets stopped, or asked to confirm.
+Start a Claude Code session and Leash is live — a banner in the chat confirms
+it (`🐕 Leash is guarding this session…`). Ask the agent for something
+reckless — it gets stopped, or asked to confirm, with a `🐕` notice in the chat
+saying which rule fired. Want a notice for allowed calls too? `leash init
+--verbose`.
 
 ```bash
 claude
