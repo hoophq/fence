@@ -1,0 +1,57 @@
+# k8s-safety — guardrails for kubectl.
+#
+# Asks before cluster-shaped blast radius: namespace deletion, --all deletes,
+# node drains. Warns on a switch to a production context. Routine gets/applies
+# stay silent.
+#
+# Install:  leash add k8s-safety
+name: k8s-safety
+
+rules:
+  - id: k8s-delete-namespace
+    description: Deleting a Kubernetes namespace removes everything in it
+    severity: high
+    effect: ask
+    message: >-
+      Deleting a namespace removes every resource inside it. Confirm the
+      namespace and the cluster context before continuing.
+    match:
+      shell:
+        command_in: [kubectl]
+      regex: '\bdelete\s+(ns|namespaces?)\b'
+
+  - id: k8s-delete-all
+    description: kubectl delete with --all/-A sweeps whole resource sets
+    severity: high
+    effect: ask
+    message: >-
+      This delete uses --all or -A and can sweep far more than one resource.
+      Confirm the scope before continuing.
+    match:
+      shell:
+        command_in: [kubectl]
+      regex: '\bdelete\b.*(\s--all\b|\s--all-namespaces\b|\s-A\b)'
+
+  - id: k8s-node-drain
+    description: Draining or cordoning a node evicts its workloads
+    severity: medium
+    effect: ask
+    message: >-
+      Draining or cordoning a node evicts or blocks workloads on it. Confirm
+      this is intended.
+    match:
+      shell:
+        command_in: [kubectl]
+      regex: '\b(drain|cordon)\b'
+
+  - id: k8s-context-production
+    description: Switching kubectl to a production context
+    severity: low
+    effect: warn
+    message: >-
+      kubectl is switching to a production-looking context — subsequent
+      commands will hit that cluster.
+    match:
+      shell:
+        command_in: [kubectl]
+      regex: '(?i)use-context\s+\S*\b(prod|production)\b'

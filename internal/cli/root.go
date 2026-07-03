@@ -3,10 +3,12 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/hoophq/leash/internal/policy"
+	"github.com/hoophq/leash/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -33,38 +35,84 @@ func NewRootCommand(version string) *cobra.Command {
 		newCheckCommand(),
 		newHookCommand(),
 		newInitCommand(),
+		newAddCommand(),
+		newSearchCommand(),
+		newRemoveCommand(),
+		newUpdateCommand(),
 		newVersionCommand(version),
 	)
 	return root
 }
 
-// buildEngine assembles the policy engine: the embedded recommended pack, plus
-// an auto-discovered project rulepack (./.leash.yaml), plus an explicit --rules
-// file if given. Later packs layer on top of earlier ones.
+// buildEngine assembles the policy engine: the embedded recommended pack, the
+// packs installed with `leash add` (~/.leash/packs), an auto-discovered
+// project rulepack (./.leash.yaml), and an explicit --rules file if given.
+// Later packs layer on top of earlier ones, and any pack can pull others in
+// with extends:.
 func buildEngine() (*policy.Engine, error) {
-	packs := []*policy.Rulepack{policy.Recommended()}
+	var st *store.Store
+	dir, err := store.DefaultDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "leash: skipping installed packs: %v\n", err)
+	} else {
+		st = store.Open(dir)
+	}
+	return buildEngineWithStore(st, rulesFile, os.Stderr)
+}
+
+// buildEngineWithStore is buildEngine with its inputs injected for tests.
+// Ambient sources — installed packs and the discovered .leash.yaml — degrade:
+// one that fails to load is skipped with a warning so the rest keep
+// protecting. The explicit --rules file stays a hard error: the user asked
+// for it by name.
+func buildEngineWithStore(st *store.Store, rulesFile string, errw io.Writer) (*policy.Engine, error) {
+	res := policy.NewResolver(locator(st))
+	var warnings []string
+
+	if st != nil {
+		names, err := st.List()
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("reading installed packs: %v (skipped)", err))
+		}
+		for _, name := range names {
+			path, ok := st.Locate(name)
+			if !ok {
+				continue
+			}
+			if err := res.Add(path); err != nil {
+				warnings = append(warnings, fmt.Sprintf("installed pack %q: %v (skipped)", name, err))
+			}
+		}
+	}
 
 	if discovered := discoverProjectRules(); discovered != "" {
-		pack, err := policy.LoadFile(discovered)
-		if err != nil {
-			return nil, err
+		if err := res.Add(discovered); err != nil {
+			warnings = append(warnings, fmt.Sprintf("%v (skipped)", err))
 		}
-		packs = append(packs, pack)
 	}
 
 	if rulesFile != "" {
-		pack, err := policy.LoadFile(rulesFile)
-		if err != nil {
+		if err := res.Add(rulesFile); err != nil {
 			return nil, err
 		}
-		packs = append(packs, pack)
 	}
 
+	packs := append([]*policy.Rulepack{policy.Recommended()}, res.Packs()...)
 	engine := policy.NewEngine(packs...)
-	for _, w := range engine.Warnings() {
-		fmt.Fprintf(os.Stderr, "leash: %s\n", w)
+	warnings = append(warnings, res.Warnings()...)
+	warnings = append(warnings, engine.Warnings()...)
+	for _, w := range warnings {
+		fmt.Fprintf(errw, "leash: %s\n", w)
 	}
 	return engine, nil
+}
+
+// locator adapts a possibly-nil store to a policy.LocateFunc.
+func locator(st *store.Store) policy.LocateFunc {
+	if st == nil {
+		return nil
+	}
+	return st.Locate
 }
 
 func discoverProjectRules() string {

@@ -49,16 +49,18 @@ protocol (e.g. Claude Code's `permissionDecision`), never through exit codes.
 
 | Path | Responsibility |
 |---|---|
-| `internal/policy` | the engine (`Evaluate`, deny-overrides), the neutral `Action`/`Effect`/`Decision` types, `Rule`/`Match`/`Rulepack`, and the embedded `recommended` pack |
+| `internal/policy` | the engine (`Evaluate`, deny-overrides), the neutral `Action`/`Effect`/`Decision` types, `Rule`/`Match`/`Rulepack`, `extends:` resolution, and the embedded `recommended` pack |
 | `internal/analyzer/shell` | shell-AST analysis → semantic facts (the differentiator) |
 | `internal/analyzer/manifest` | content analysis of `package.json` / `setup.py` for install hooks |
 | `internal/adapter/<agent>` | translate one agent's tool call ⇄ neutral `Action` |
-| `internal/cli` | the `check`, `hook`, `init`, `version` commands |
+| `internal/store` | the user-level state dir (`~/.leash`): installed packs + lockfile |
+| `internal/registry` | fetch + checksum-verify packs from a static index (never on the eval path) |
+| `internal/cli` | the `check`, `hook`, `init`, `add`, `search`, `update`, `remove`, `version` commands |
 | `cmd/leash` | entrypoint |
 
 ## Extending Leash
 
-Two clean extension points:
+Three clean extension points:
 
 - **A new agent** = a new adapter under `internal/adapter/`. Map the agent's
   tool call to an `Action` and its decision format back out; the engine and
@@ -67,5 +69,9 @@ Two clean extension points:
   predicate in `policy`, then a rule that uses it. Every detector ships with a
   table-driven test that pins **both** the catch and the safe cases — the
   false-positive discipline is the product.
+- **A new rulepack** = a YAML file anyone can publish to the
+  [registry](registry.md) and anyone can install with `leash add` — no Go
+  involved. Because packs are agent-neutral, one published pack guards every
+  agent Leash supports.
 
 See [Rules](rules.md) for the match conditions those facts expose.

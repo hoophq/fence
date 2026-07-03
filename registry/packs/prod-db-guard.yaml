@@ -1,0 +1,43 @@
+# prod-db-guard — a pause before an agent touches a database.
+#
+# Asks before production-flavored database sessions and destructive SQL from
+# the common CLI clients. Everyday local development queries stay silent.
+#
+# Install:  leash add prod-db-guard
+name: prod-db-guard
+
+rules:
+  - id: prod-db-session
+    description: Opening a database session against something named prod
+    severity: high
+    effect: ask
+    message: >-
+      This database command targets something named prod/production. Confirm
+      the agent should be talking to that database.
+    match:
+      shell:
+        command_in: [psql, mysql, mongosh, mongo, redis-cli]
+      regex: '(?i)\b(prod|production)\b'
+
+  - id: prod-db-destructive-sql
+    description: DROP or TRUNCATE issued through a database CLI
+    severity: high
+    effect: ask
+    message: >-
+      This runs destructive SQL (DROP/TRUNCATE) through a database client.
+      Confirm the target database and statement before continuing.
+    match:
+      shell:
+        command_in: [psql, mysql]
+      regex: '(?i)\b(drop\s+(database|schema|table)\b|truncate(\s+table)?\s+\S)'
+
+  - id: prod-db-mongo-drop
+    description: Dropping a MongoDB database from the shell
+    severity: high
+    effect: ask
+    message: >-
+      This drops a MongoDB database. Confirm the target before continuing.
+    match:
+      shell:
+        command_in: [mongosh, mongo]
+      regex: '(?i)dropdatabase\s*\('

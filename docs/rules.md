@@ -7,6 +7,8 @@ conditions, and how to retune the built-in rules.
 ## How rulepacks layer
 
 - The embedded **`recommended`** pack is always active.
+- Packs installed with **[`leash add`](registry.md)** layer next — active in
+  every project, no setup.
 - Drop a **`./.leash.yaml`** in your project (auto-discovered) or pass
   **`--rules <file>`** to layer your own rules on top.
 - When several rules match one command, the **most severe effect wins**:
@@ -81,6 +83,24 @@ Matched against semantic facts from the shell parser — not the raw text.
 | Field | Fires on |
 |---|---|
 | `url_regex` | a regexp against the fetched URL |
+
+## Extending another pack
+
+Any rulepack can pull other packs in underneath itself with `extends:` — an
+installed pack by name, or a file by path (relative to the file declaring it):
+
+```yaml
+extends:
+  - terraform-safety        # installed with `leash add`
+  - ./team/base-rules.yaml  # a file next to this one
+overrides:
+  terraform-destroy: ask    # this file wins over what it extends
+```
+
+The extending file layers **on top** of what it pulls in, a pack reached twice
+loads once, and a missing target degrades to a warning with the fix
+(`run: leash add <name>`) — it never takes the engine down.
+**→ [Composition semantics, in depth](registry.md)**
 
 ## Overriding a built-in rule's effect
 

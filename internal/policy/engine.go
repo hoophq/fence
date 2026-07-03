@@ -24,14 +24,16 @@ type Engine struct {
 // appended after earlier ones; the default effect is taken from the last pack
 // that sets one, falling back to allow. Effect overrides from every pack are
 // applied to the pooled rules by id (later packs win); an override that targets
-// an unknown id is recorded as a warning rather than failing. Rulepacks must
-// already be validated (Load/LoadFile do this).
+// an unknown id is recorded as a warning rather than failing, as is a rule id
+// defined by more than one pack. Rulepacks must already be validated
+// (Load/LoadFile do this).
 func NewEngine(packs ...*Rulepack) *Engine {
 	e := &Engine{defaultEffect: EffectAllow}
 	home, _ := os.UserHomeDir()
 	e.home = home
 
 	overrides := map[string]Effect{}
+	definedIn := map[string]string{} // rule id -> pack that first defined it
 	for _, p := range packs {
 		if p == nil {
 			continue
@@ -39,7 +41,22 @@ func NewEngine(packs ...*Rulepack) *Engine {
 		if p.Default != "" {
 			e.defaultEffect = p.Default
 		}
+		name := p.Name
+		if name == "" {
+			name = "(unnamed pack)"
+		}
+		start := len(e.rules)
 		e.rules = append(e.rules, p.Rules...)
+		for i := start; i < len(e.rules); i++ {
+			e.rules[i].pack = name
+			id := e.rules[i].ID
+			if prev, ok := definedIn[id]; ok {
+				e.warnings = append(e.warnings, fmt.Sprintf(
+					"rule id %q is defined by both %q and %q (both stay active)", id, prev, name))
+			} else {
+				definedIn[id] = name
+			}
+		}
 		for id, eff := range p.Overrides {
 			overrides[id] = eff // later packs win
 		}

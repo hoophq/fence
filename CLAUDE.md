@@ -31,7 +31,13 @@ central audit, and approval workflows out of scope.
   net→shell pipe). **This is the differentiator** — see Conventions.
 - `internal/adapter/<agent>/` — translate one agent's tool call ⇄ neutral `Action`.
   `claudecode` (Claude Code PreToolUse) is the first adapter.
-- `internal/cli/` — Cobra commands: `check`, `hook`, `init`, `version`.
+- `internal/store/` — the user-level state dir (`~/.leash`): packs installed via
+  `leash add` (the packs dir is the source of truth) + `packs.lock.json` metadata.
+- `internal/registry/` — fetch + sha256-verify packs from a static index
+  (`registry/` in this repo, read raw off main). Only the explicit commands
+  import it — **nothing on the eval path may ever touch the network**.
+- `internal/cli/` — Cobra commands: `check`, `hook`, `init`, `add`, `search`,
+  `update`, `remove`, `version`.
 - `cmd/leash/` — entrypoint; `version` is injected via `-ldflags "-X main.version=..."`.
 
 ## Conventions (load-bearing)
@@ -52,10 +58,17 @@ central audit, and approval workflows out of scope.
 
 ## Rulepacks
 
-- The embedded `recommended` pack is always active. Users layer their own rules
-  via `./.leash.yaml` (auto-discovered) or `--rules <file>`.
+- Layering order: the embedded `recommended` pack (always active), then packs
+  installed with `leash add` (`~/.leash/packs`, a-z), then `./.leash.yaml`
+  (auto-discovered), then `--rules <file>`. Any pack can pull others in below
+  itself with `extends:` (installed name or relative path; resolved in
+  `internal/policy/resolve.go`, never over the network).
 - When several rules match, the most severe effect wins (`deny` > `ask` > `warn`
   > `allow`). Default when nothing matches is `allow`.
+- Ambient sources (installed packs, `.leash.yaml`) degrade on error — warn and
+  skip, the rest keep protecting; an explicit `--rules` failure stays loud.
+- Seed packs live in `registry/packs/` + `registry/index.yaml`; after editing a
+  pack, recompute its `sha256` in the index (the seed test enforces this).
 
 ## Gotchas
 

@@ -17,7 +17,12 @@ type Rule struct {
 
 	regex *regexp.Regexp // compiled form of Match.Regex
 	url   *regexp.Regexp // compiled form of Match.URLRegex
+	pack  string         // provenance: which pack supplied this rule (stamped by NewEngine, not YAML)
 }
+
+// Pack names the rulepack this rule came from. It is provenance stamped when
+// an engine pools the rule — pack authors cannot set it in YAML.
+func (r *Rule) Pack() string { return r.pack }
 
 // Match is the condition of a rule. An empty Match never matches (rules must be
 // specific); a non-empty Match requires all of its set conditions to hold.

@@ -1,9 +1,10 @@
 # CLI commands
 
-`leash` is a single binary with a handful of subcommands. The global
-`--rules <file>` flag layers an extra [rulepack](rules.md) on top of the
-built-in `recommended` pack — and a `./.leash.yaml` in the working directory is
-picked up automatically.
+`leash` is a single binary with a handful of subcommands. Every evaluation
+layers rulepacks in the same order: the built-in `recommended` pack, then any
+packs installed with [`leash add`](#leash-add), then a `./.leash.yaml` in the
+working directory (picked up automatically), then the global `--rules <file>`
+flag ([rulepack reference](rules.md)).
 
 ## `leash init`
 
@@ -17,6 +18,60 @@ leash init --global   # global  — ~/.claude/settings.json
 
 Idempotent and non-destructive: it preserves existing settings and won't add the
 hook twice. Restart Claude Code (or start a new session) to activate it.
+
+## `leash search`
+
+Discover rulepacks published in the [registry](registry.md). With no query,
+lists everything; installed packs are marked.
+
+```console
+$ leash search terraform
+terraform-safety 1.0.0
+    Block terraform destroy; confirm state mutations and unreviewed applies
+```
+
+| Flag | Meaning |
+|---|---|
+| `--registry <url or path>` | read a different registry index |
+
+## `leash add`
+
+Install a rulepack from the registry. The pack's sha256 is verified against
+the index before anything is written; installed packs land in
+`~/.leash/packs/` and are active everywhere leash runs — no per-project setup,
+no restart.
+
+```console
+$ leash add terraform-safety
+Installed terraform-safety 1.0.0 (5 rules) — active on every tool call from now on.
+```
+
+| Flag | Meaning |
+|---|---|
+| `--registry <url or path>` | install from a different registry index |
+
+## `leash update`
+
+Re-read the registry and reinstall any installed packs whose published
+checksum changed — all of them, or just the ones you name. Never removes a
+pack, and never lets one registry replace a pack installed from another.
+
+```bash
+leash update                    # everything
+leash update terraform-safety   # just one
+```
+
+| Flag | Meaning |
+|---|---|
+| `--registry <url or path>` | update from a different registry index |
+
+## `leash remove`
+
+Uninstall a pack installed with `leash add`.
+
+```bash
+leash remove terraform-safety
+```
 
 ## `leash check`
 
@@ -69,5 +124,6 @@ leash version
 
 ---
 
-See [Rules](rules.md) for writing and layering rulepacks, and
-[Architecture](architecture.md) for how a decision is produced.
+See [Rules](rules.md) for writing and layering rulepacks, the
+[Registry](registry.md) for sharing them, and [Architecture](architecture.md)
+for how a decision is produced.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -18,6 +19,10 @@ type Rulepack struct {
 	Name string `yaml:"name"`
 	// Default is the effect applied when no rule matches. Last pack to set it wins.
 	Default Effect `yaml:"default,omitempty"`
+	// Extends pulls other packs in below this one: each entry is an installed
+	// pack name or a file path relative to this file. A Resolver flattens the
+	// chain so this pack's rules, overrides, and default win.
+	Extends []string `yaml:"extends,omitempty"`
 	// Overrides retunes existing rules by id, changing only their effect
 	// (e.g. soften a recommended deny to ask). Applied across all packs once
 	// rules are pooled; later packs win.
@@ -55,6 +60,9 @@ func LoadFile(path string) (*Rulepack, error) {
 	return pack, nil
 }
 
+// RecommendedName is the name of the embedded, always-active pack.
+const RecommendedName = "recommended"
+
 // Recommended returns the rulepack shipped with Leash.
 func Recommended() *Rulepack {
 	f, err := builtinFS.Open("builtin/recommended.yaml")
@@ -73,6 +81,11 @@ func Recommended() *Rulepack {
 func (p *Rulepack) validate() error {
 	if p.Default != "" && !p.Default.Valid() {
 		return fmt.Errorf("rulepack %q has invalid default effect %q", p.Name, p.Default)
+	}
+	for _, ref := range p.Extends {
+		if strings.TrimSpace(ref) == "" {
+			return fmt.Errorf("rulepack %q has an empty extends entry", p.Name)
+		}
 	}
 	for id, eff := range p.Overrides {
 		if !eff.Valid() {

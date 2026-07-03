@@ -103,7 +103,11 @@ func printDecision(cmd *cobra.Command, a policy.Action, d policy.Decision) {
 		if sev == "" {
 			sev = "—"
 		}
-		fmt.Fprintf(out, "  %s %s (%s)\n", c.dim("rule:"), d.Rule.ID, sev)
+		provenance := ""
+		if p := d.Rule.Pack(); p != "" && p != policy.RecommendedName {
+			provenance = c.dim(" · from " + p)
+		}
+		fmt.Fprintf(out, "  %s %s (%s)%s\n", c.dim("rule:"), d.Rule.ID, sev, provenance)
 		if msg := ruleText(d.Rule); msg != "" {
 			fmt.Fprintf(out, "  %s\n", c.dim(wrap(msg, 72, "  ")))
 		}

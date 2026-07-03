@@ -1,0 +1,32 @@
+# The Leash rulepack registry.
+#
+# `leash search` and `leash add` read this file live off the main branch —
+# publishing a pack is a PR that adds a file under packs/ and an entry here.
+# See docs/registry.md for the authoring walkthrough (including how to compute
+# the sha256). CI verifies every entry's checksum and that every pack loads.
+schema: 1
+
+packs:
+  - name: terraform-safety
+    description: Block terraform destroy; confirm state mutations and unreviewed applies
+    version: "1.0.0"
+    sha256: b87e4b899a574be6a3818acd96ebcaac7a6a155eb3068d224cef7df0336f057a
+    path: packs/terraform-safety.yaml
+    tags: [terraform, tofu, infra, iac]
+    maintainer: hoophq
+
+  - name: prod-db-guard
+    description: Confirm production database sessions and destructive SQL from CLI clients
+    version: "1.0.0"
+    sha256: 284d89b86e36417940b71ad6ab9ed8da62bde554d2af6ffa7ecd410dd09372f7
+    path: packs/prod-db-guard.yaml
+    tags: [database, postgres, mysql, mongodb, production]
+    maintainer: hoophq
+
+  - name: k8s-safety
+    description: Confirm namespace deletes, --all sweeps, and node drains; warn on prod contexts
+    version: "1.0.0"
+    sha256: 27afb468f7fc160fcb20d337146ff991eef55953e381b70a0af3604d27388de6
+    path: packs/k8s-safety.yaml
+    tags: [kubernetes, kubectl, infra]
+    maintainer: hoophq

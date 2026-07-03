@@ -105,7 +105,7 @@ claude
 ```
 
 **→ [All CLI commands](docs/cli.md)** — `init`, `check` (test a verdict without
-an agent), `hook`, and `version`.
+an agent), `add`/`search` (rulepacks), `hook`, and `version`.
 
 ---
 
@@ -161,6 +161,23 @@ overrides:
 
 ---
 
+## Grab a rulepack
+
+Guardrails others already wrote — Terraform, Kubernetes, production databases —
+install with one command and are active on the next tool call, in every project:
+
+```bash
+leash search                    # see what's published
+leash add terraform-safety      # checksum-verified, then live everywhere
+```
+
+Compose them in a committed `.leash.yaml` (`extends: [terraform-safety]`) to
+pin a baseline for your whole team — and publishing your own pack is just a PR.
+
+**→ [The registry: install, author, publish](docs/registry.md)**
+
+---
+
 ## How it works
 
 ```
@@ -195,9 +212,10 @@ developer can't override it.
 - [x] Semantic detectors — deletes, disk wipes, fork bombs, exfiltration,
       world-writable, off-registry installs, manifest hooks, persistence
 - [x] One-line installers — Homebrew, npm
+- [x] A shareable rulepack registry — `leash search` · `leash add <pack>` ·
+      [publish your own](docs/registry.md)
 - [ ] More agents — Codex, Cursor, Gemini CLI
-- [ ] A shareable rulepack registry — `leash add <pack>`
 
 ## License
 
-MIT © [hoop.dev](https://hoop.dev) — built by the team behind hoop.
+MIT © [hoop.dev](https://hoop.dev/?utm_source=leash&utm_medium=github&utm_campaign=att-launch-072026) — built by the team behind hoop.

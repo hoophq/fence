@@ -1,0 +1,71 @@
+# terraform-safety — guardrails for Terraform / OpenTofu.
+#
+# Blocks `terraform destroy` outright and asks before state mutations and
+# unreviewed applies. `terraform plan -destroy` (a preview) stays untouched.
+#
+# Install:  leash add terraform-safety
+# Soften:   overrides: { terraform-destroy: ask }  in your .leash.yaml
+name: terraform-safety
+
+rules:
+  - id: terraform-destroy
+    description: terraform destroy tears down live infrastructure
+    severity: critical
+    effect: deny
+    message: >-
+      terraform destroy tears down live infrastructure and is blocked by the
+      terraform-safety pack. If you really mean it, run it yourself — or
+      soften this rule with an override (terraform-destroy: ask).
+    match:
+      shell:
+        command_in: [terraform, tofu]
+      regex: '\b(terraform|tofu)\b(\s+-\S+)*\s+(destroy\b|apply\b.*\s-+destroy\b)'
+
+  - id: terraform-apply-auto-approve
+    description: terraform apply -auto-approve skips plan review
+    severity: high
+    effect: ask
+    message: >-
+      This apply skips the plan review (-auto-approve). Confirm the change is
+      what you expect before letting it run.
+    match:
+      shell:
+        command_in: [terraform, tofu]
+      regex: '\b(terraform|tofu)\b.*\bapply\b.*\s-+auto-approve\b'
+
+  - id: terraform-state-mutation
+    description: terraform state rm/mv/push rewrites the state file
+    severity: high
+    effect: ask
+    message: >-
+      This command rewrites Terraform state (state rm/mv/push). A mistake here
+      orphans or duplicates real resources. Confirm before continuing.
+    match:
+      shell:
+        command_in: [terraform, tofu]
+      regex: '\b(terraform|tofu)\b.*\bstate\s+(rm|mv|push)\b'
+
+  - id: terraform-force-unlock
+    description: terraform force-unlock releases another run's state lock
+    severity: medium
+    effect: ask
+    message: >-
+      force-unlock releases a state lock that may be held by a live run.
+      Confirm nobody else is applying right now.
+    match:
+      shell:
+        command_in: [terraform, tofu]
+      regex: '\b(terraform|tofu)\b.*\bforce-unlock\b'
+
+  - id: terraform-state-file-write
+    description: Editing a Terraform state file directly
+    severity: high
+    effect: ask
+    message: >-
+      This edit targets a Terraform state file. Hand-edited state is a classic
+      way to lose track of real infrastructure — confirm this is intended.
+    match:
+      tool: [file_write]
+      path_glob:
+        - "**/*.tfstate"
+        - "**/*.tfstate.backup"
