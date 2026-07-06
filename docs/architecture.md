@@ -44,6 +44,8 @@ A guardrail must never brick the agent it protects. If an input can't be parsed
 or an internal error occurs, Leash logs to stderr and exits 0 — the command
 proceeds as if Leash weren't installed. Decisions travel through the agent's JSON
 protocol (e.g. Claude Code's `permissionDecision`), never through exit codes.
+What that trade costs — and every other accepted limit — is written down in
+the [threat model](threat-model.md).
 
 ## Package layout
 

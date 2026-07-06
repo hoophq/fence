@@ -205,6 +205,8 @@ Leash is **local self-protection**: it lives in your config, and you can edit or
 remove it. That's exactly right for protecting *yourself* from an agent's
 mistakes. It is honestly **not** a compliance control — a determined user (or an
 agent running as you) can disable anything on a machine they fully control.
+The **[threat model](docs/threat-model.md)** spells this out, including the
+known evasion paths and why they're accepted.
 
 Need guardrails your developers **can't** turn off — centrally managed, enforced
 fleet-wide, with approval workflows and audit? That's a different trust model,
