@@ -91,6 +91,11 @@ brew install hoophq/tap/leash
 npm install -g @hoophq/leash
 ```
 
+**Windows** isn't supported natively yet — the hook path hasn't been verified
+there, and a silently broken hook is worse than an honest no. **WSL works
+today** (Leash behaves exactly as on Linux inside it); native support is
+tracked in [#26](https://github.com/hoophq/leash/issues/26).
+
 ## Quickstart — Claude Code
 
 ```bash

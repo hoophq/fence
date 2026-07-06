@@ -22,9 +22,15 @@ function binaryPath() {
 
 const bin = binaryPath();
 if (!bin) {
+  const windows =
+    process.platform === "win32"
+      ? `Native Windows isn't supported yet — run Leash inside WSL (works exactly as on Linux),\n` +
+        `or follow https://github.com/hoophq/leash/issues/26 for native support.\n`
+      : "";
   console.error(
     `leash: no prebuilt binary for ${process.platform}-${process.arch}.\n` +
       `Supported: darwin/linux on x64/arm64.\n` +
+      windows +
       `Install from source instead: go install github.com/hoophq/leash/cmd/leash@latest`
   );
   process.exit(1);

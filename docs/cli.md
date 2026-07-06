@@ -30,6 +30,11 @@ Idempotent and non-destructive: it preserves existing settings (including a
 matcher you've customized) and won't add the hooks twice. Restart Claude Code
 (or start a new session) to activate them.
 
+On native Windows, `init` refuses with an honest message instead of
+installing a hook that was never verified there — use WSL (where Leash works
+exactly as on Linux) or follow
+[#26](https://github.com/hoophq/leash/issues/26).
+
 ## `leash uninstall`
 
 The exit door: removes the hooks `leash init` installed — and nothing else.

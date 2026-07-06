@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -38,6 +39,9 @@ func newInitCommand() *cobra.Command {
 			"path and toggles --quiet on or off.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := initSupportedOS(runtime.GOOS); err != nil {
+				return fail(cmd, err)
+			}
 			path, err := settingsPath(global)
 			if err != nil {
 				return fail(cmd, err)
@@ -68,6 +72,17 @@ func newInitCommand() *cobra.Command {
 	_ = cmd.Flags().MarkDeprecated("verbose",
 		"allowed-call notices are now the default; use --quiet to turn them off")
 	return cmd
+}
+
+// initSupportedOS refuses to install hooks where the hook path has never been
+// verified end to end — a silently broken hook is worse than an honest no.
+// Uninstall carries no such guard: removing hooks is always safe.
+func initSupportedOS(goos string) error {
+	if goos == "windows" {
+		return fmt.Errorf("native Windows isn't supported yet (the hook path is unverified there, and a silently broken hook is worse than an honest no) — " +
+			"run Leash inside WSL, where it works exactly as on Linux, or follow https://github.com/hoophq/leash/issues/26")
+	}
+	return nil
 }
 
 func settingsPath(global bool) (string, error) {

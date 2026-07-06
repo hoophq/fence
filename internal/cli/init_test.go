@@ -370,3 +370,18 @@ func TestContainsHook(t *testing.T) {
 		}
 	}
 }
+
+// Windows is documented out at 1.0: init must refuse honestly rather than
+// install a hook that was never verified there. See issue #26.
+func TestInitSupportedOS(t *testing.T) {
+	if err := initSupportedOS("windows"); err == nil {
+		t.Fatal("init on windows must refuse with an error")
+	} else if !strings.Contains(err.Error(), "WSL") {
+		t.Errorf("the refusal should point at WSL, got %q", err)
+	}
+	for _, goos := range []string{"darwin", "linux"} {
+		if err := initSupportedOS(goos); err != nil {
+			t.Errorf("initSupportedOS(%q) = %v, want nil", goos, err)
+		}
+	}
+}
