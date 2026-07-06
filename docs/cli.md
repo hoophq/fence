@@ -136,6 +136,30 @@ Every variant always exits 0 and **fails open**: if the input can't be
 understood or the rules can't load, the tool call proceeds as if Leash weren't
 there — and the session banner says so instead of pretending you're covered.
 
+### The `claude-code` envelope (frozen at 1.0)
+
+What the hook reads and writes is a public contract — anything scripting
+against it can rely on this shape for all of Leash 1.x.
+
+**Input** (Claude Code's `PreToolUse` JSON on stdin): `cwd`, `tool_name`, and
+from `tool_input` the fields `command` (Bash), `file_path` (Write / Edit /
+MultiEdit / NotebookEdit / Read), `url` (WebFetch), plus the written content
+(`content`, `new_string`, `edits[].new_string`) for the manifest-hook
+detector. Unknown tools and missing fields degrade to "nothing to evaluate" —
+never an error.
+
+**Output** (stdout), by decision:
+
+| Decision | `hookSpecificOutput.permissionDecision` | `systemMessage` |
+|---|---|---|
+| deny | `"deny"` + the rule's message as the reason | 🐕 notice naming the rule |
+| ask | `"ask"` + the rule's message as the reason | 🐕 notice naming the rule |
+| warn | *absent* — the call proceeds | 🐕 notice naming the rule |
+| allow | *absent* — **never emitted** | 🐕 notice, unless `--quiet` (then no output at all) |
+
+An explicit `"allow"` decision is never written: it would override permission
+settings you configured in Claude Code itself. Leash only ever tightens.
+
 ## `leash version`
 
 Prints the version.

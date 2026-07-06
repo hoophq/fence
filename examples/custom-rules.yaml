@@ -7,6 +7,7 @@
 #
 # Rules here are evaluated together with the recommended pack. When several rules
 # match, the most severe effect wins (deny > ask > warn > allow).
+schema: 1
 name: custom-example
 default: allow
 

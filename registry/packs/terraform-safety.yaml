@@ -5,6 +5,7 @@
 #
 # Install:  leash add terraform-safety
 # Soften:   overrides: { terraform-destroy: ask }  in your .leash.yaml
+schema: 1
 name: terraform-safety
 
 rules:
