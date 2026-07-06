@@ -1,4 +1,4 @@
-// Package store manages Leash's user-level state directory (~/.leash): the
+// Package store manages Fence's user-level state directory (~/.fence): the
 // rulepacks installed from a registry, and the lockfile recording where each
 // came from. The packs directory is the source of truth for what is active;
 // the lockfile is metadata for update/search, so a damaged lockfile can never
@@ -14,22 +14,22 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hoophq/leash/internal/policy"
+	"github.com/hoophq/fence/internal/policy"
 )
 
-// Store is a Leash state directory.
+// Store is a Fence state directory.
 type Store struct{ dir string }
 
 // Open returns a Store rooted at dir. The directory need not exist yet.
 func Open(dir string) *Store { return &Store{dir: dir} }
 
-// DefaultDir returns the default state directory, ~/.leash.
+// DefaultDir returns the default state directory, ~/.fence.
 func DefaultDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("locate home directory: %w", err)
 	}
-	return filepath.Join(home, ".leash"), nil
+	return filepath.Join(home, ".fence"), nil
 }
 
 // packExts are the extensions a pack file may carry inside the store; Install

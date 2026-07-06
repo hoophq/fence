@@ -1,4 +1,4 @@
-# Leash "stays out of the way" demo — render from the repo root:  vhs docs/assets/safe.tape
+# Fence "stays out of the way" demo — render from the repo root:  vhs docs/assets/safe.tape
 Output docs/assets/safe.gif
 
 Set Shell "bash"

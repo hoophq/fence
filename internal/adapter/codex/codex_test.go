@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hoophq/leash/internal/policy"
+	"github.com/hoophq/fence/internal/policy"
 )
 
 func TestParseActionsBash(t *testing.T) {
@@ -153,8 +153,8 @@ func TestWriteDecision(t *testing.T) {
 				}
 			}
 			msg, _ := m["systemMessage"].(string)
-			if tc.wantMessage && (!strings.Contains(msg, "🐕") || !strings.Contains(msg, "test-rule")) {
-				t.Fatalf("systemMessage = %q, want the 🐕 notice naming the rule", msg)
+			if tc.wantMessage && (!strings.Contains(msg, "🚧") || !strings.Contains(msg, "test-rule")) {
+				t.Fatalf("systemMessage = %q, want the 🚧 notice naming the rule", msg)
 			}
 		})
 	}
@@ -170,7 +170,7 @@ func TestWriteSessionStart(t *testing.T) {
 		t.Fatal("the banner must not carry a permission decision")
 	}
 	msg, _ := m["systemMessage"].(string)
-	for _, want := range []string{"Leash v1.2.3", "2 packs", "24 rules", "1 rulepack failed to load"} {
+	for _, want := range []string{"Fence v1.2.3", "2 packs", "24 rules", "1 rulepack failed to load"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("banner %q missing %q", msg, want)
 		}

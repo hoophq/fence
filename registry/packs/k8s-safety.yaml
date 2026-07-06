@@ -4,7 +4,7 @@
 # node drains. Warns on a switch to a production context. Routine gets/applies
 # stay silent.
 #
-# Install:  leash add k8s-safety
+# Install:  fence add k8s-safety
 schema: 1
 name: k8s-safety
 

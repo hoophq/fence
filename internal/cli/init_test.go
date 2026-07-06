@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	claudeInvocation   = "leash hook claude-code"
+	claudeInvocation   = "fence hook claude-code"
 	wantCommand        = "/opt/homebrew/bin/" + claudeInvocation
 	wantSessionCommand = wantCommand + " session-start"
 )
@@ -82,7 +82,7 @@ func TestInstallHooks(t *testing.T) {
 			// there yet.
 			name: "adds the session banner to a pre-banner install",
 			initial: `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[
-				{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code"}]}]}}`,
+				{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code"}]}]}}`,
 			want:        hookInstalled,
 			preCmds:     []string{wantCommand},
 			sessionCmds: []string{wantSessionCommand},
@@ -90,8 +90,8 @@ func TestInstallHooks(t *testing.T) {
 		{
 			name: "idempotent when both hooks already match",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code"}]}],
-				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code"}]}],
+				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code session-start"}]}]}}`,
 			want:        hookUnchanged,
 			preCmds:     []string{wantCommand},
 			sessionCmds: []string{wantSessionCommand},
@@ -102,15 +102,15 @@ func TestInstallHooks(t *testing.T) {
 			// Re-running init must heal both hooks, not report "already present".
 			name: "heals stale binary paths in both hooks",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/Caskroom/leash/0.0.2/leash hook claude-code"}]}],
-				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/Caskroom/leash/0.0.2/leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/Caskroom/fence/0.0.2/fence hook claude-code"}]}],
+				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/Caskroom/fence/0.0.2/fence hook claude-code session-start"}]}]}}`,
 			want:        hookUpdated,
 			preCmds:     []string{wantCommand},
 			sessionCmds: []string{wantSessionCommand},
 		},
 		{
 			name:        "bare PATH command is recognized and healed to absolute",
-			initial:     `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"leash hook claude-code"}]}]}}`,
+			initial:     `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"fence hook claude-code"}]}]}}`,
 			want:        hookInstalled, // healed + banner added
 			preCmds:     []string{wantCommand},
 			sessionCmds: []string{wantSessionCommand},
@@ -118,8 +118,8 @@ func TestInstallHooks(t *testing.T) {
 		{
 			name: "quiet toggles on",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code"}]}],
-				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code"}]}],
+				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code session-start"}]}]}}`,
 			quiet:       true,
 			want:        hookUpdated,
 			preCmds:     []string{wantCommand + " --quiet"},
@@ -128,8 +128,8 @@ func TestInstallHooks(t *testing.T) {
 		{
 			name: "quiet toggles back off",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code --quiet"}]}],
-				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code --quiet"}]}],
+				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code session-start"}]}]}}`,
 			want:        hookUpdated,
 			preCmds:     []string{wantCommand},
 			sessionCmds: []string{wantSessionCommand},
@@ -140,8 +140,8 @@ func TestInstallHooks(t *testing.T) {
 			// default, so converging drops it.
 			name: "legacy --verbose converges to the plain command",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code --verbose"}]}],
-				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code --verbose"}]}],
+				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code session-start"}]}]}}`,
 			want:        hookUpdated,
 			preCmds:     []string{wantCommand},
 			sessionCmds: []string{wantSessionCommand},
@@ -152,8 +152,8 @@ func TestInstallHooks(t *testing.T) {
 			// silently weaken the user's setup.
 			name: "preserves an unmanaged flag while healing a stale path",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/Caskroom/leash/0.0.2/leash hook claude-code --rules /custom.yaml"}]}],
-				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/Caskroom/fence/0.0.2/fence hook claude-code --rules /custom.yaml"}]}],
+				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code session-start"}]}]}}`,
 			want:        hookUpdated,
 			preCmds:     []string{wantCommand + " --rules /custom.yaml"},
 			sessionCmds: []string{wantSessionCommand},
@@ -161,8 +161,8 @@ func TestInstallHooks(t *testing.T) {
 		{
 			name: "preserves an unmanaged flag across a quiet toggle",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code --rules /custom.yaml"}]}],
-				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code --rules /custom.yaml"}]}],
+				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code session-start"}]}]}}`,
 			quiet:       true,
 			want:        hookUpdated,
 			preCmds:     []string{wantCommand + " --quiet --rules /custom.yaml"},
@@ -171,8 +171,8 @@ func TestInstallHooks(t *testing.T) {
 		{
 			name: "an unmanaged flag alone is not a change",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code --rules /custom.yaml"}]}],
-				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code --rules /custom.yaml"}]}],
+				"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/opt/homebrew/bin/fence hook claude-code session-start"}]}]}}`,
 			want:        hookUnchanged,
 			preCmds:     []string{wantCommand + " --rules /custom.yaml"},
 			sessionCmds: []string{wantSessionCommand},
@@ -217,12 +217,12 @@ func TestInstallHooks(t *testing.T) {
 	}
 }
 
-// The pre-default spelling `leash init --verbose` must keep parsing (users
+// The pre-default spelling `fence init --verbose` must keep parsing (users
 // type it from muscle memory): it asked for what is now the default, so the
 // written hook command carries no token at all.
 func TestInitLegacyVerboseFlagStillAccepted(t *testing.T) {
 	isolateHome(t)
-	runLeash(t, "", "init", "--verbose")
+	runFence(t, "", "init", "--verbose")
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -238,8 +238,8 @@ func TestInitLegacyVerboseFlagStillAccepted(t *testing.T) {
 func TestInstallHooksPreservesCustomMatcher(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	initial := `{"hooks":{
-		"PreToolUse":[{"matcher":"Bash|Write","hooks":[{"type":"command","command":"/stale/leash hook claude-code"}]}],
-		"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"/stale/leash hook claude-code session-start"}]}]}}`
+		"PreToolUse":[{"matcher":"Bash|Write","hooks":[{"type":"command","command":"/stale/fence hook claude-code"}]}],
+		"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"/stale/fence hook claude-code session-start"}]}]}}`
 	if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -354,17 +354,17 @@ func TestContainsHook(t *testing.T) {
 		cmd  string
 		want bool
 	}{
-		{"leash hook claude-code", true},
-		{"/opt/homebrew/bin/leash hook claude-code", true},
-		{"/Users/dev/go/bin/leash hook claude-code", true},
-		{"leash hook claude-code session-start", true},
-		{"/opt/homebrew/bin/leash hook claude-code session-start", true},
-		{"/opt/homebrew/bin/leash hook claude-code --quiet", true},
-		{"/opt/homebrew/bin/leash hook claude-code --verbose", true}, // legacy installs
-		{"leash hook claude-codex", false},
-		{"leash check 'rm -rf ~'", false},
-		{"echo leash hook claude-code | wc -l", false},
-		{"leash hook claude-code && rm -rf /", false},
+		{"fence hook claude-code", true},
+		{"/opt/homebrew/bin/fence hook claude-code", true},
+		{"/Users/dev/go/bin/fence hook claude-code", true},
+		{"fence hook claude-code session-start", true},
+		{"/opt/homebrew/bin/fence hook claude-code session-start", true},
+		{"/opt/homebrew/bin/fence hook claude-code --quiet", true},
+		{"/opt/homebrew/bin/fence hook claude-code --verbose", true}, // legacy installs
+		{"fence hook claude-codex", false},
+		{"fence check 'rm -rf ~'", false},
+		{"echo fence hook claude-code | wc -l", false},
+		{"fence hook claude-code && rm -rf /", false},
 		{"", false},
 	}
 	for _, tt := range tests {
@@ -374,13 +374,13 @@ func TestContainsHook(t *testing.T) {
 	}
 
 	// Per-agent identity: one agent's invocation never claims the other's.
-	if containsHook("/usr/local/bin/leash hook codex", claudeInvocation) {
+	if containsHook("/usr/local/bin/fence hook codex", claudeInvocation) {
 		t.Error("a codex hook must not be recognized as claude-code's")
 	}
-	if !containsHook("/usr/local/bin/leash hook codex --quiet", "leash hook codex") {
+	if !containsHook("/usr/local/bin/fence hook codex --quiet", "fence hook codex") {
 		t.Error("a codex hook with flags must be recognized as codex's")
 	}
-	if containsHook("/usr/local/bin/leash hook claude-code", "leash hook codex") {
+	if containsHook("/usr/local/bin/fence hook claude-code", "fence hook codex") {
 		t.Error("a claude-code hook must not be recognized as codex's")
 	}
 }

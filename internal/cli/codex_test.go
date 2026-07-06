@@ -10,7 +10,7 @@ import (
 
 func TestHookCodexDeny(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}`,
+	out := runFence(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}`,
 		"hook", "codex")
 	for _, want := range []string{`"permissionDecision":"deny"`, `"systemMessage"`} {
 		if !strings.Contains(out, want) {
@@ -21,9 +21,9 @@ func TestHookCodexDeny(t *testing.T) {
 
 func TestHookCodexAllowAnnounces(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+	out := runFence(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
 		"hook", "codex")
-	if !strings.Contains(out, "Leash allowed this") {
+	if !strings.Contains(out, "Fence allowed this") {
 		t.Errorf("allow missing the notice:\n%s", out)
 	}
 	// The bypass guard, end to end: allow feedback must never carry a
@@ -53,7 +53,7 @@ func TestHookCodexApplyPatchManifestHook(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out := runLeash(t, string(payload), "hook", "codex")
+	out := runFence(t, string(payload), "hook", "codex")
 	if !strings.Contains(out, `"permissionDecision":"ask"`) {
 		t.Fatalf("want ask for a lifecycle-hook injection, got:\n%s", out)
 	}
@@ -64,7 +64,7 @@ func TestHookCodexApplyPatchManifestHook(t *testing.T) {
 
 func TestHookCodexSessionStart(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, "", "hook", "codex", "session-start")
+	out := runFence(t, "", "hook", "codex", "session-start")
 	if !strings.Contains(out, "guarding this session") {
 		t.Fatalf("banner missing:\n%s", out)
 	}
@@ -75,8 +75,8 @@ func TestHookCodexSessionStart(t *testing.T) {
 
 func TestInitCodexWritesHooksFile(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, "", "init", "codex")
-	if !strings.Contains(out, "Installed the Leash hooks") || !strings.Contains(out, "/hooks") {
+	out := runFence(t, "", "init", "codex")
+	if !strings.Contains(out, "Installed the Fence hooks") || !strings.Contains(out, "/hooks") {
 		t.Fatalf("init codex output = %q, want install confirmation + the trust note", out)
 	}
 
@@ -109,10 +109,10 @@ func TestUninstallCodex(t *testing.T) {
 	}
 	path := filepath.Join(wd, ".codex", "hooks.json")
 	writeTestFile(t, path, `{"hooks":{
-		"PreToolUse":[{"matcher":"^(Bash|apply_patch)$","hooks":[{"type":"command","command":"/usr/local/bin/leash hook codex"}]}],
-		"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/usr/local/bin/leash hook codex session-start"}]}]}}`)
+		"PreToolUse":[{"matcher":"^(Bash|apply_patch)$","hooks":[{"type":"command","command":"/usr/local/bin/fence hook codex"}]}],
+		"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"/usr/local/bin/fence hook codex session-start"}]}]}}`)
 
-	if out := runLeash(t, "", "uninstall", "codex"); !strings.Contains(out, "Removed the Leash hooks") {
+	if out := runFence(t, "", "uninstall", "codex"); !strings.Contains(out, "Removed the Fence hooks") {
 		t.Fatalf("uninstall codex output = %q", out)
 	}
 	if _, ok := readSettings(t, path)["hooks"]; ok {

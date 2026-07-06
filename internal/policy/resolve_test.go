@@ -95,8 +95,8 @@ func TestResolverMissingInstalledNameWarnsWithHint(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantOrder(t, r, "top") // the pack itself still loads
-	if len(r.Warnings()) != 1 || !strings.Contains(r.Warnings()[0], "leash add ghost") {
-		t.Fatalf("want a warning hinting `leash add ghost`, got %v", r.Warnings())
+	if len(r.Warnings()) != 1 || !strings.Contains(r.Warnings()[0], "fence add ghost") {
+		t.Fatalf("want a warning hinting `fence add ghost`, got %v", r.Warnings())
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 )
 
 // isolateHome points HOME at an empty temp dir and moves into another, so the
-// developer's real ~/.leash and any project .leash.yaml never leak into the
+// developer's real ~/.fence and any project .fence.yaml never leak into the
 // engine under test. Returns the fake home.
 func isolateHome(t *testing.T) string {
 	t.Helper()
@@ -20,9 +20,9 @@ func isolateHome(t *testing.T) string {
 	return home
 }
 
-// runLeash executes the real root command — flag parsing, subcommand dispatch,
+// runFence executes the real root command — flag parsing, subcommand dispatch,
 // stdin/stdout plumbing — and returns stdout.
-func runLeash(t *testing.T, stdin string, args ...string) string {
+func runFence(t *testing.T, stdin string, args ...string) string {
 	t.Helper()
 	root := NewRootCommand("1.2.3")
 	root.SetIn(strings.NewReader(stdin))
@@ -31,14 +31,14 @@ func runLeash(t *testing.T, stdin string, args ...string) string {
 	root.SetErr(io.Discard)
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
-		t.Fatalf("leash %s: %v", strings.Join(args, " "), err)
+		t.Fatalf("fence %s: %v", strings.Join(args, " "), err)
 	}
 	return out.String()
 }
 
 func TestHookClaudeCodeDeny(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}`,
+	out := runFence(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}`,
 		"hook", "claude-code")
 	for _, want := range []string{`"permissionDecision":"deny"`, `"systemMessage"`} {
 		if !strings.Contains(out, want) {
@@ -49,9 +49,9 @@ func TestHookClaudeCodeDeny(t *testing.T) {
 
 func TestHookClaudeCodeAllowAnnounces(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+	out := runFence(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
 		"hook", "claude-code")
-	if !strings.Contains(out, "Leash allowed this") {
+	if !strings.Contains(out, "Fence allowed this") {
 		t.Errorf("allow missing the notice:\n%s", out)
 	}
 	// The bypass guard, end to end: allow feedback must never carry a
@@ -63,21 +63,21 @@ func TestHookClaudeCodeAllowAnnounces(t *testing.T) {
 
 func TestHookClaudeCodeQuietAllowIsSilent(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+	out := runFence(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
 		"hook", "claude-code", "--quiet")
 	if out != "" {
 		t.Fatalf("a quiet allowed call must produce no output, got:\n%s", out)
 	}
 }
 
-// Settings files written by older `leash init --verbose` runs still pass
+// Settings files written by older `fence init --verbose` runs still pass
 // --verbose on every tool call; the flag must stay accepted (it asked for
 // what is now the default) or those hooks would error out and fail open.
 func TestHookClaudeCodeLegacyVerboseFlagStillAccepted(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
+	out := runFence(t, `{"cwd":".","tool_name":"Bash","tool_input":{"command":"ls -la"}}`,
 		"hook", "claude-code", "--verbose")
-	if !strings.Contains(out, "Leash allowed this") {
+	if !strings.Contains(out, "Fence allowed this") {
 		t.Errorf("legacy --verbose allow missing the notice:\n%s", out)
 	}
 	if strings.Contains(out, "permissionDecision") {
@@ -87,7 +87,7 @@ func TestHookClaudeCodeLegacyVerboseFlagStillAccepted(t *testing.T) {
 
 func TestHookClaudeCodeFailsOpenOnGarbage(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, "definitely not json", "hook", "claude-code")
+	out := runFence(t, "definitely not json", "hook", "claude-code")
 	if out != "" {
 		t.Fatalf("unparseable input must produce no output (fail open), got:\n%s", out)
 	}
@@ -95,8 +95,8 @@ func TestHookClaudeCodeFailsOpenOnGarbage(t *testing.T) {
 
 func TestHookSessionStartBanner(t *testing.T) {
 	isolateHome(t)
-	out := runLeash(t, "", "hook", "claude-code", "session-start")
-	for _, want := range []string{"Leash v1.2.3 is guarding this session", "(1 pack,"} {
+	out := runFence(t, "", "hook", "claude-code", "session-start")
+	for _, want := range []string{"Fence v1.2.3 is guarding this session", "(1 pack,"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("banner missing %q:\n%s", want, out)
 		}
@@ -111,7 +111,7 @@ func TestHookSessionStartBanner(t *testing.T) {
 
 func TestHookSessionStartReportsFailedPack(t *testing.T) {
 	home := isolateHome(t)
-	packs := filepath.Join(home, ".leash", "packs")
+	packs := filepath.Join(home, ".fence", "packs")
 	if err := os.MkdirAll(packs, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestHookSessionStartReportsFailedPack(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out := runLeash(t, "", "hook", "claude-code", "session-start")
+	out := runFence(t, "", "hook", "claude-code", "session-start")
 	if !strings.Contains(out, "1 rulepack failed to load") {
 		t.Errorf("banner does not report the broken pack:\n%s", out)
 	}

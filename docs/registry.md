@@ -5,8 +5,8 @@ Rulepacks are shareable guardrails: one YAML file that layers on the built-in
 and anyone gets it with one command:
 
 ```bash
-leash search terraform          # discover
-leash add terraform-safety      # install — active on the next tool call
+fence search terraform          # discover
+fence add terraform-safety      # install — active on the next tool call
 ```
 
 This registry is deliberately **not** a package manager for code: a pack is
@@ -17,24 +17,24 @@ registries.)
 ## Consuming packs
 
 ```bash
-leash search [query]        # list published packs (name, description, tags)
-leash add <pack>            # fetch, verify checksum, install
-leash update [pack...]      # re-install whatever the registry has newer
-leash remove <pack>         # uninstall
+fence search [query]        # list published packs (name, description, tags)
+fence add <pack>            # fetch, verify checksum, install
+fence update [pack...]      # re-install whatever the registry has newer
+fence remove <pack>         # uninstall
 ```
 
-Installed packs live in `~/.leash/packs/` and are **globally active**: every
-`leash check` and every agent hook evaluation layers them on the recommended
+Installed packs live in `~/.fence/packs/` and are **globally active**: every
+`fence check` and every agent hook evaluation layers them on the recommended
 pack, in this order:
 
 ```
-recommended  <  installed packs (a-z)  <  ./.leash.yaml  <  --rules <file>
+recommended  <  installed packs (a-z)  <  ./.fence.yaml  <  --rules <file>
 ```
 
 Later packs win where they overlap (`overrides`, `default`), and when several
 rules match one action the most severe effect still wins. Nothing here weakens
 the recommended pack unless a pack you chose to install explicitly overrides
-one of its rules — and `leash check` will name the pack that did
+one of its rules — and `fence check` will name the pack that did
 (`rule: … · from <pack>`).
 
 A broken installed pack can never take your protection down: it is skipped
@@ -42,27 +42,27 @@ with a stderr warning and every other pack keeps working.
 
 ### Integrity — what the checksum does and doesn't do
 
-`leash add` and `leash update` verify each pack's **sha256 against the index**
+`fence add` and `fence update` verify each pack's **sha256 against the index**
 before anything touches disk, and validate that it parses as a rulepack. That
 protects against transport corruption and a tampered pack file.
 
 It does **not** make the registry itself trustworthy: whoever controls the
-index controls the checksums in it. The default registry lives in the Leash
+index controls the checksums in it. The default registry lives in the Fence
 repo and changes only by reviewed pull request; if you point `--registry`
 somewhere else, you are trusting that source the same way you trust any
 `--rules` file you pass by hand. Packs are inert YAML either way — the blast
 radius of a malicious pack is bad *rules* (e.g. silencing an ask), not code
 execution. Once installed, packs are yours: dev-owned files you can read,
-edit, or delete — in keeping with what Leash is (local self-protection, not
+edit, or delete — in keeping with what Fence is (local self-protection, not
 central enforcement).
 
 ## Composing packs with `extends:`
 
-Any rulepack — including `./.leash.yaml` — can pull other packs in
+Any rulepack — including `./.fence.yaml` — can pull other packs in
 underneath itself:
 
 ```yaml
-# .leash.yaml
+# .fence.yaml
 name: my-project
 extends:
   - terraform-safety        # an installed pack, by name
@@ -73,23 +73,23 @@ overrides:
 
 Semantics:
 
-- **A bare name** resolves to an installed pack (`~/.leash/packs/<name>.yaml`);
+- **A bare name** resolves to an installed pack (`~/.fence/packs/<name>.yaml`);
   a reference with a `/` or a `.yaml`/`.yml` suffix is a file path, resolved
   relative to the file that declares it.
 - **Extended packs layer below the extending file**, so its `rules`,
   `overrides`, and `default` win.
-- **Missing target?** Leash warns with the fix (`run: leash add <name>`),
+- **Missing target?** Fence warns with the fix (`run: fence add <name>`),
   skips that reference, and keeps everything else running.
 - **Cycles and diamonds** are handled: a pack reached twice loads once, and a
   circular reference is skipped with a warning.
 
-Committing a `.leash.yaml` with `extends:` is how a team shares a baseline:
-teammates run `leash add <pack>` once, and the project file pins the
+Committing a `.fence.yaml` with `extends:` is how a team shares a baseline:
+teammates run `fence add <pack>` once, and the project file pins the
 composition from then on.
 
 ## Authoring a pack
 
-A pack is a normal rulepack file — same schema as `.leash.yaml`
+A pack is a normal rulepack file — same schema as `.fence.yaml`
 ([full reference](rules.md)):
 
 ```yaml
@@ -120,15 +120,15 @@ Guidelines that keep packs worth installing:
 Test the pack locally before publishing — no registry involved:
 
 ```bash
-leash check --rules ./my-pack.yaml 'terraform destroy'    # should catch
-leash check --rules ./my-pack.yaml 'terraform plan'       # must stay ALLOW
+fence check --rules ./my-pack.yaml 'terraform destroy'    # should catch
+fence check --rules ./my-pack.yaml 'terraform plan'       # must stay ALLOW
 ```
 
 ## Publishing to the registry
 
-The registry is static files in the Leash repo — publishing is a pull request:
+The registry is static files in the Fence repo — publishing is a pull request:
 
-1. Fork [`hoophq/leash`](https://github.com/hoophq/leash) and add your pack as
+1. Fork [`hoophq/fence`](https://github.com/hoophq/fence) and add your pack as
    `registry/packs/<name>.yaml`.
 2. Compute its checksum: `shasum -a 256 registry/packs/<name>.yaml`
 3. Add an entry to `registry/index.yaml`:
@@ -148,7 +148,7 @@ The registry is static files in the Leash repo — publishing is a pull request:
    build, not someone's install.
 
 Ship an update by editing the pack, bumping `version`, and recomputing
-`sha256`. Users pick it up with `leash update`. The index is read live off
+`sha256`. Users pick it up with `fence update`. The index is read live off
 `main`, so a merged PR is published — no release needed.
 
 ## Self-hosting a registry
@@ -156,8 +156,8 @@ Ship an update by editing the pack, bumping `version`, and recomputing
 `--registry` points the commands at any index — an HTTPS URL or a local path:
 
 ```bash
-leash add my-pack --registry https://example.com/leash/index.yaml
-leash add my-pack --registry ./my-registry/index.yaml    # e.g. a checkout
+fence add my-pack --registry https://example.com/fence/index.yaml
+fence add my-pack --registry ./my-registry/index.yaml    # e.g. a checkout
 ```
 
 An index is just `index.yaml` (`schema: 1`, a `packs:` list as above) with
@@ -167,11 +167,11 @@ checkout.
 
 ## Compatibility
 
-The index format is a public contract, frozen at Leash 1.0: `schema: 1` and
+The index format is a public contract, frozen at Fence 1.0: `schema: 1` and
 the entry fields above (`name`, `description`, `version`, `sha256`, `path`,
 `tags`, `maintainer`) keep their meaning for all of 1.x. An index declaring a
 newer `schema` than the binary understands fails loudly — `add`, `search`,
-and `update` refuse with an "upgrade leash" message rather than misreading
+and `update` refuse with an "upgrade fence" message rather than misreading
 it. Pack files carry their own `schema:` marker with the same promise;
 [rules.md](rules.md#schema-version--compatibility) spells out what is frozen
 and how a newer-schema pack degrades at load time.

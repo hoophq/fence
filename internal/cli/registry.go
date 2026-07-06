@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hoophq/leash/internal/registry"
-	"github.com/hoophq/leash/internal/store"
+	"github.com/hoophq/fence/internal/registry"
+	"github.com/hoophq/fence/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +18,7 @@ func addRegistryFlag(cmd *cobra.Command) {
 		"registry index to read (an https URL or a local path)")
 }
 
-// openStore returns the user-level store (~/.leash) the registry commands
+// openStore returns the user-level store (~/.fence) the registry commands
 // operate on. Unlike the engine path, these commands are explicit and loud:
 // no store, no command.
 func openStore() (*store.Store, error) {

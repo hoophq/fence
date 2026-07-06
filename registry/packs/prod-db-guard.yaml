@@ -3,7 +3,7 @@
 # Asks before production-flavored database sessions and destructive SQL from
 # the common CLI clients. Everyday local development queries stay silent.
 #
-# Install:  leash add prod-db-guard
+# Install:  fence add prod-db-guard
 schema: 1
 name: prod-db-guard
 

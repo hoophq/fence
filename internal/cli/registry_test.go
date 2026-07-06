@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hoophq/leash/internal/registry"
-	"github.com/hoophq/leash/internal/store"
+	"github.com/hoophq/fence/internal/registry"
+	"github.com/hoophq/fence/internal/store"
 )
 
 const fixturePackV1 = `name: fixture
@@ -253,7 +253,7 @@ func TestRunUpdateKeepsPackDroppedFromRegistry(t *testing.T) {
 }
 
 // A same-named pack in a different registry is a different pack — a bare
-// `leash update` against the wrong registry must never replace it.
+// `fence update` against the wrong registry must never replace it.
 func TestRunUpdateRefusesCrossRegistryReplacement(t *testing.T) {
 	st := store.Open(t.TempDir())
 	indexA := fakeRegistry(t, fixturePackV1, "1.0.0", hexSum(fixturePackV1))
@@ -291,7 +291,7 @@ func TestRunUpdateSkipsUnmanagedPack(t *testing.T) {
 	if err := runUpdate(&out, st, registry.NewClient(index), nil); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "leash add fixture to adopt") {
+	if !strings.Contains(out.String(), "fence add fixture to adopt") {
 		t.Fatalf("output = %q, want an adopt hint", out.String())
 	}
 	data, err := os.ReadFile(st.PackPath("fixture"))

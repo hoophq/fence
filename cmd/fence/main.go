@@ -1,10 +1,10 @@
-// Command leash is the Leash CLI: guardrails for AI coding agents.
+// Command fence is the Fence CLI: guardrails for AI coding agents.
 package main
 
 import (
 	"os"
 
-	"github.com/hoophq/leash/internal/cli"
+	"github.com/hoophq/fence/internal/cli"
 )
 
 // version is overridden at build time via -ldflags "-X main.version=...".

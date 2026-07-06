@@ -1,28 +1,28 @@
 <div align="center">
 
-# 🐕 Leash
+# 🚧 Fence
 
 ### Guardrails for AI coding agents.
 
-Leash blocks the catastrophic command **before** your agent runs it —
+Fence blocks the catastrophic command **before** your agent runs it —
 and stays silent for everything else.
 
-[![CI](https://github.com/hoophq/leash/actions/workflows/ci.yml/badge.svg)](https://github.com/hoophq/leash/actions/workflows/ci.yml)
+[![CI](https://github.com/hoophq/fence/actions/workflows/ci.yml/badge.svg)](https://github.com/hoophq/fence/actions/workflows/ci.yml)
 &nbsp;·&nbsp; ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 &nbsp;·&nbsp; [CLI](docs/cli.md) &nbsp;·&nbsp; [Rules](docs/rules.md) &nbsp;·&nbsp; [Architecture](docs/architecture.md)
 
-<img src="docs/assets/deny.gif" alt="An agent is asked to exfiltrate AWS credentials; Leash blocks the tool call before it runs" width="860">
+<img src="docs/assets/deny.gif" alt="An agent is asked to exfiltrate AWS credentials; Fence blocks the tool call before it runs" width="860">
 
 </div>
 
 An agent is asked to send your AWS credentials to a URL. It reaches for the tool
-call — `cat ~/.aws/credentials | curl …` — and **Leash blocks it before it runs**,
-so the agent backs off. No denylist to evade: Leash parses the command and judges
+call — `cat ~/.aws/credentials | curl …` — and **Fence blocks it before it runs**,
+so the agent backs off. No denylist to evade: Fence parses the command and judges
 what it actually _does_.
 
 ---
 
-## Why Leash
+## Why Fence
 
 AI agents run with **your** permissions. A confused — or prompt-injected — agent
 can delete your files, leak your keys, or wire up persistence, with nothing
@@ -30,7 +30,7 @@ standing between it and your machine. The denylist "guardrails" floating around
 are substring matchers: trivially dodged (`rm -fr`, a script written then run),
 and so noisy you turn them off.
 
-Leash is built the other way:
+Fence is built the other way:
 
 - 🧠 **Semantic, not substring.** `rm -rf ~`, `rm -fr ~`, `rm -r -f ~`,
   `sudo rm -rf $HOME` — one dangerous intent, all caught.
@@ -40,10 +40,10 @@ Leash is built the other way:
 - 🚦 **Block, ask, or allow.** Unambiguous catastrophe is blocked; the
   plausibly-legit gets a confirm prompt; the everyday passes in silence.
 - 🔒 **Permissive modes don't weaken it.** Agent hooks run *before* the
-  permission system, so a leash `deny` blocks even in auto-accept or
+  permission system, so a fence `deny` blocks even in auto-accept or
   `--dangerously-skip-permissions` sessions — where it's the only guardrail
   left standing.
-- 🪶 **Fails open.** If Leash can't parse something, the command runs. A
+- 🪶 **Fails open.** If Fence can't parse something, the command runs. A
   guardrail must never brick the agent it protects.
 - 🧩 **Agent-neutral.** One portable rulepack. Claude Code today; Codex, Cursor,
   and Gemini next.
@@ -53,10 +53,10 @@ Leash is built the other way:
 ## See it in the loop
 
 **It stops prompt injection, not just clumsy commands.** A hidden instruction in
-a file steers the agent into `rm -rf ~` — Leash blocks the tool call and tells you
+a file steers the agent into `rm -rf ~` — Fence blocks the tool call and tells you
 where it came from.
 
-<img src="docs/assets/inject.gif" alt="A prompt injection hidden in a Makefile tries to make the agent delete your home directory; Leash blocks it" width="860">
+<img src="docs/assets/inject.gif" alt="A prompt injection hidden in a Makefile tries to make the agent delete your home directory; Fence blocks it" width="860">
 
 <details>
 <summary><b>More scenarios</b> — asks when unsure · stays quiet on routine work · keeps secrets out of the model</summary>
@@ -65,15 +65,15 @@ where it came from.
 
 **Asks before an irreversible action** — force-push, history rewrite:
 
-<img src="docs/assets/ask.gif" alt="Leash pauses a force-push and asks the human to confirm" width="820">
+<img src="docs/assets/ask.gif" alt="Fence pauses a force-push and asks the human to confirm" width="820">
 
 **Stays out of the way on everyday commands** — near-zero false positives:
 
-<img src="docs/assets/safe.gif" alt="Leash lets rm -rf node_modules and npm install run without a prompt" width="820">
+<img src="docs/assets/safe.gif" alt="Fence lets rm -rf node_modules and npm install run without a prompt" width="820">
 
 **Keeps secrets out of the model's context** — even a `cat` with no network:
 
-<img src="docs/assets/secret-read.gif" alt="Leash asks before an agent reads cloud credentials into its context" width="820">
+<img src="docs/assets/secret-read.gif" alt="Fence asks before an agent reads cloud credentials into its context" width="820">
 
 </details>
 
@@ -83,36 +83,36 @@ where it came from.
 
 ```bash
 # Homebrew — macOS
-brew install hoophq/tap/leash
+brew install hoophq/tap/fence
 ```
 
 ```bash
 # npm — macOS / Linux
-npm install -g @hoophq/leash
+npm install -g @hoophq/fence
 ```
 
 **Windows** isn't supported natively yet — the hook path hasn't been verified
 there, and a silently broken hook is worse than an honest no. **WSL works
-today** (Leash behaves exactly as on Linux inside it); native support is
-tracked in [#26](https://github.com/hoophq/leash/issues/26).
+today** (Fence behaves exactly as on Linux inside it); native support is
+tracked in [#26](https://github.com/hoophq/fence/issues/26).
 
 ## Quickstart — Claude Code
 
 ```bash
-leash init --global   # add the Leash hooks to .claude/settings.json, for every project
+fence init --global   # add the Fence hooks to .claude/settings.json, for every project
 ```
 
-Start a Claude Code session and Leash is live — a banner in the chat confirms
-it (`🐕 Leash is guarding this session…`). Ask the agent for something
-reckless — it gets stopped, or asked to confirm, with a `🐕` notice in the chat
-saying which rule fired. Allowed calls get a notice too, so you can see Leash
-watching; `leash init --quiet` turns those off.
+Start a Claude Code session and Fence is live — a banner in the chat confirms
+it (`🚧 Fence is guarding this session…`). Ask the agent for something
+reckless — it gets stopped, or asked to confirm, with a `🚧` notice in the chat
+saying which rule fired. Allowed calls get a notice too, so you can see Fence
+watching; `fence init --quiet` turns those off.
 
 ```bash
 claude
 ```
 
-And here's how you leave: `leash uninstall` removes exactly the hooks `init`
+And here's how you leave: `fence uninstall` removes exactly the hooks `init`
 added and touches nothing else. Dev-owned means you can walk away cleanly.
 
 ## Quickstart — Codex
@@ -120,10 +120,10 @@ added and touches nothing else. Dev-owned means you can walk away cleanly.
 Same guardrails, same rulepacks, one command:
 
 ```bash
-leash init codex   # writes ./.codex/hooks.json (--global for ~/.codex)
+fence init codex   # writes ./.codex/hooks.json (--global for ~/.codex)
 ```
 
-Then run `/hooks` inside Codex once to trust the Leash entries (Codex only
+Then run `/hooks` inside Codex once to trust the Fence entries (Codex only
 runs hooks you've approved). Shell commands and `apply_patch` file edits are
 screened by the same engine — one rulepack, every agent.
 
@@ -161,7 +161,7 @@ the safe cases.
 
 ## Make it yours
 
-Layer your own rules with a `./.leash.yaml` (auto-discovered) or `--rules <file>`:
+Layer your own rules with a `./.fence.yaml` (auto-discovered) or `--rules <file>`:
 
 ```yaml
 rules:
@@ -190,11 +190,11 @@ Guardrails others already wrote — Terraform, Kubernetes, production databases 
 install with one command and are active on the next tool call, in every project:
 
 ```bash
-leash search                    # see what's published
-leash add terraform-safety      # checksum-verified, then live everywhere
+fence search                    # see what's published
+fence add terraform-safety      # checksum-verified, then live everywhere
 ```
 
-Compose them in a committed `.leash.yaml` (`extends: [terraform-safety]`) to
+Compose them in a committed `.fence.yaml` (`extends: [terraform-safety]`) to
 pin a baseline for your whole team — and publishing your own pack is just a PR.
 
 **→ [The registry: install, author, publish](docs/registry.md)**
@@ -216,9 +216,9 @@ specific agent — which is what makes one rulepack portable across all of them.
 
 ---
 
-## What Leash is — and isn't
+## What Fence is — and isn't
 
-Leash is **local self-protection**: it lives in your config, and you can edit or
+Fence is **local self-protection**: it lives in your config, and you can edit or
 remove it. That's exactly right for protecting *yourself* from an agent's
 mistakes. It is honestly **not** a compliance control — a determined user (or an
 agent running as you) can disable anything on a machine they fully control.
@@ -227,7 +227,7 @@ known evasion paths and why they're accepted.
 
 Need guardrails your developers **can't** turn off — centrally managed, enforced
 fleet-wide, with approval workflows and audit? That's a different trust model,
-and it's what **[hoop.dev](https://hoop.dev/start?utm_source=leash&utm_medium=github&utm_campaign=att-launch-072026)** does. Same idea, enforced where the
+and it's what **[hoop.dev](https://hoop.dev/start?utm_source=fence&utm_medium=github&utm_campaign=att-launch-072026)** does. Same idea, enforced where the
 developer can't override it.
 
 ---
@@ -237,11 +237,11 @@ developer can't override it.
 - [x] Semantic detectors — deletes, disk wipes, fork bombs, exfiltration,
       world-writable, off-registry installs, manifest hooks, persistence
 - [x] One-line installers — Homebrew, npm
-- [x] A shareable rulepack registry — `leash search` · `leash add <pack>` ·
+- [x] A shareable rulepack registry — `fence search` · `fence add <pack>` ·
       [publish your own](docs/registry.md)
 - [x] A second agent — Codex (same rulepacks, zero engine changes)
 - [ ] More agents — Cursor, Gemini CLI
 
 ## License
 
-MIT © [hoop.dev](https://hoop.dev/?utm_source=leash&utm_medium=github&utm_campaign=att-launch-072026) — built by the team behind hoop.
+MIT © [hoop.dev](https://hoop.dev/?utm_source=fence&utm_medium=github&utm_campaign=att-launch-072026) — built by the team behind hoop.

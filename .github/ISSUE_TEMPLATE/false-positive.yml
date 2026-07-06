@@ -1,5 +1,5 @@
 name: False positive
-description: "Leash blocked or questioned an everyday command. The most valuable report we get — near-zero false positives is the whole product."
+description: "Fence blocked or questioned an everyday command. The most valuable report we get — near-zero false positives is the whole product."
 title: "[FP] "
 labels: ["false-positive"]
 body:
@@ -12,14 +12,14 @@ body:
     id: command
     attributes:
       label: The exact command (or file path / URL)
-      description: Verbatim, as the agent ran it. `leash check '<command>'` reproduces the verdict without an agent.
+      description: Verbatim, as the agent ran it. `fence check '<command>'` reproduces the verdict without an agent.
       placeholder: "rm -rf ./build-cache"
     validations:
       required: true
   - type: dropdown
     id: decision
     attributes:
-      label: What Leash decided
+      label: What Fence decided
       options:
         - ask
         - deny
@@ -30,7 +30,7 @@ body:
     id: rule
     attributes:
       label: The rule that fired
-      description: Named in the 🐕 chat notice or the `leash check` card, e.g. `destructive-delete-outside-workspace`.
+      description: Named in the 🚧 chat notice or the `fence check` card, e.g. `destructive-delete-outside-workspace`.
     validations:
       required: false
   - type: textarea
@@ -43,14 +43,14 @@ body:
   - type: input
     id: version
     attributes:
-      label: Leash version
-      description: "`leash version`"
+      label: Fence version
+      description: "`fence version`"
     validations:
       required: true
   - type: textarea
     id: packs
     attributes:
       label: Active rulepacks beyond recommended
-      description: Installed packs (`ls ~/.leash/packs`), a project `.leash.yaml`, or a `--rules` file — paste the relevant rule if it's yours.
+      description: Installed packs (`ls ~/.fence/packs`), a project `.fence.yaml`, or a `--rules` file — paste the relevant rule if it's yours.
     validations:
       required: false

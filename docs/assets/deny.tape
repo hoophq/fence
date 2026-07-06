@@ -1,4 +1,4 @@
-# Leash agentic deny demo — render from the repo root:  vhs docs/assets/deny.tape
+# Fence agentic deny demo — render from the repo root:  vhs docs/assets/deny.tape
 Output docs/assets/deny.gif
 
 Set Shell "bash"

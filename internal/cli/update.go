@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hoophq/leash/internal/registry"
-	"github.com/hoophq/leash/internal/store"
+	"github.com/hoophq/fence/internal/registry"
+	"github.com/hoophq/fence/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -60,13 +60,13 @@ func runUpdate(out io.Writer, st *store.Store, client *registry.Client, names []
 		}
 		locked, managed := lf.Packs[name]
 		if !managed {
-			fmt.Fprintf(out, "%s: not installed from a registry (kept as-is; leash add %s to adopt it)\n", name, name)
+			fmt.Fprintf(out, "%s: not installed from a registry (kept as-is; fence add %s to adopt it)\n", name, name)
 			continue
 		}
 		// A same-named pack in a different registry is not an update — it is
 		// a different pack. Never let one registry replace another's install.
 		if locked.Source != client.Location() {
-			fmt.Fprintf(out, "%s: installed from a different registry (kept as-is; update with: leash update %s --registry %s)\n",
+			fmt.Fprintf(out, "%s: installed from a different registry (kept as-is; update with: fence update %s --registry %s)\n",
 				name, name, locked.Source)
 			continue
 		}

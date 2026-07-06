@@ -1,15 +1,15 @@
 name: Detector gap (false negative)
-description: "A catastrophic command slipped through — Leash allowed something it should have caught."
+description: "A catastrophic command slipped through — Fence allowed something it should have caught."
 title: "[gap] "
 labels: ["detector-gap"]
 body:
   - type: markdown
     attributes:
       value: |
-        First check the [threat model](https://github.com/hoophq/leash/blob/main/docs/threat-model.md):
+        First check the [threat model](https://github.com/hoophq/fence/blob/main/docs/threat-model.md):
         some evasion paths (interpreter one-liners, write-then-run, obfuscation) are accepted
         limits of shell-AST analysis, not gaps. If it's exploitable beyond a missed detection,
-        use [private reporting](https://github.com/hoophq/leash/security/advisories/new) instead.
+        use [private reporting](https://github.com/hoophq/fence/security/advisories/new) instead.
   - type: input
     id: command
     attributes:
@@ -27,7 +27,7 @@ body:
   - type: dropdown
     id: expected
     attributes:
-      label: What Leash should have done
+      label: What Fence should have done
       description: "The discipline: deny only what's almost never intentional; ask for anything a developer might mean."
       options:
         - ask
@@ -45,7 +45,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Leash version
-      description: "`leash version`"
+      label: Fence version
+      description: "`fence version`"
     validations:
       required: true

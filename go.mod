@@ -1,4 +1,4 @@
-module github.com/hoophq/leash
+module github.com/hoophq/fence
 
 go 1.26
 

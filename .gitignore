@@ -1,5 +1,5 @@
 # Build output
-/leash
+/fence
 /dist/
 /npm/build/
 *.test

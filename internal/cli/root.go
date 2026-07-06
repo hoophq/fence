@@ -1,4 +1,4 @@
-// Package cli implements the leash command-line interface.
+// Package cli implements the fence command-line interface.
 package cli
 
 import (
@@ -7,19 +7,19 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hoophq/leash/internal/policy"
-	"github.com/hoophq/leash/internal/store"
+	"github.com/hoophq/fence/internal/policy"
+	"github.com/hoophq/fence/internal/store"
 	"github.com/spf13/cobra"
 )
 
 var rulesFile string
 
-// NewRootCommand builds the root `leash` command and its subcommands.
+// NewRootCommand builds the root `fence` command and its subcommands.
 func NewRootCommand(version string) *cobra.Command {
 	root := &cobra.Command{
-		Use:   "leash",
+		Use:   "fence",
 		Short: "Guardrails for AI coding agents",
-		Long: "Leash keeps AI coding agents from running catastrophic commands —\n" +
+		Long: "Fence keeps AI coding agents from running catastrophic commands —\n" +
 			"recursive deletes of your home directory, secret exfiltration, force-\n" +
 			"pushes — by inspecting each tool call before it runs. It understands\n" +
 			"commands semantically (a real shell parser), so it is not fooled by\n" +
@@ -46,15 +46,15 @@ func NewRootCommand(version string) *cobra.Command {
 }
 
 // buildEngine assembles the policy engine: the embedded recommended pack, the
-// packs installed with `leash add` (~/.leash/packs), an auto-discovered
-// project rulepack (./.leash.yaml), and an explicit --rules file if given.
+// packs installed with `fence add` (~/.fence/packs), an auto-discovered
+// project rulepack (./.fence.yaml), and an explicit --rules file if given.
 // Later packs layer on top of earlier ones, and any pack can pull others in
 // with extends:.
 func buildEngine() (*policy.Engine, int, error) {
 	var st *store.Store
 	dir, err := store.DefaultDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "leash: skipping installed packs: %v\n", err)
+		fmt.Fprintf(os.Stderr, "fence: skipping installed packs: %v\n", err)
 	} else {
 		st = store.Open(dir)
 	}
@@ -62,7 +62,7 @@ func buildEngine() (*policy.Engine, int, error) {
 }
 
 // buildEngineWithStore is buildEngine with its inputs injected for tests.
-// Ambient sources — installed packs and the discovered .leash.yaml — degrade:
+// Ambient sources — installed packs and the discovered .fence.yaml — degrade:
 // one that fails to load is skipped with a warning so the rest keep
 // protecting. The int returned counts those skipped sources, so the session
 // banner can say protection is thinner than configured. The explicit --rules
@@ -108,7 +108,7 @@ func buildEngineWithStore(st *store.Store, rulesFile string, errw io.Writer) (*p
 	warnings = append(warnings, res.Warnings()...)
 	warnings = append(warnings, engine.Warnings()...)
 	for _, w := range warnings {
-		fmt.Fprintf(errw, "leash: %s\n", w)
+		fmt.Fprintf(errw, "fence: %s\n", w)
 	}
 	return engine, failed, nil
 }
@@ -126,7 +126,7 @@ func discoverProjectRules() string {
 	if err != nil {
 		return ""
 	}
-	for _, name := range []string{".leash.yaml", ".leash.yml"} {
+	for _, name := range []string{".fence.yaml", ".fence.yml"} {
 		candidate := filepath.Join(wd, name)
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate
@@ -136,6 +136,6 @@ func discoverProjectRules() string {
 }
 
 func fail(cmd *cobra.Command, err error) error {
-	fmt.Fprintf(os.Stderr, "leash: %v\n", err)
+	fmt.Fprintf(os.Stderr, "fence: %v\n", err)
 	return err
 }

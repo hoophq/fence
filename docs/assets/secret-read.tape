@@ -1,4 +1,4 @@
-# Leash secret-read demo — render from the repo root:  vhs docs/assets/secret-read.tape
+# Fence secret-read demo — render from the repo root:  vhs docs/assets/secret-read.tape
 Output docs/assets/secret-read.gif
 
 Set Shell "bash"

@@ -2,24 +2,24 @@
 
 ## Project Overview
 
-Leash is a standalone Go CLI: **guardrails for AI coding agents**. It inspects an
+Fence is a standalone Go CLI: **guardrails for AI coding agents**. It inspects an
 agent's tool calls (through that agent's hook system) and blocks or asks before
 catastrophic ones run — recursive deletes of home/root, secret exfiltration,
 `curl | sh`, force-pushes. Standalone Go module, Go 1.26, no runtime services.
 
-**Scope is deliberate.** Leash is *local self-protection*: dev-owned,
+**Scope is deliberate.** Fence is *local self-protection*: dev-owned,
 dev-editable, and it fails open. It is intentionally **not** a compliance or
 central-enforcement product — keep un-bypassable policy, fleet management,
 central audit, and approval workflows out of scope.
 
 ## Commands
 
-- `make build` → `./dist/leash` · `make test` · `make vet` · `make fmt` · `make tidy`
+- `make build` → `./dist/fence` · `make test` · `make vet` · `make fmt` · `make tidy`
 - Raw: `go build ./...` · `go test ./...` · `go vet ./...` · `gofmt -l .`
 - `go test ./...` is the gate — tests pin the false-positive discipline.
-- Test a rule without an agent: `leash check 'rm -rf ~'` (prints a DENY/ASK/WARN/ALLOW card).
+- Test a rule without an agent: `fence check 'rm -rf ~'` (prints a DENY/ASK/WARN/ALLOW card).
 - Exercise the hook directly:
-  `echo '{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}' | ./dist/leash hook claude-code`
+  `echo '{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}' | ./dist/fence hook claude-code`
 
 ## Architecture — agent-neutral core + per-agent adapters
 
@@ -38,14 +38,14 @@ central audit, and approval workflows out of scope.
   may drift. Decisions and chat notices ride the same JSON envelope; an explicit
   "allow" decision is never emitted (it would bypass the user's own permission
   settings).
-- `internal/store/` — the user-level state dir (`~/.leash`): packs installed via
-  `leash add` (the packs dir is the source of truth) + `packs.lock.json` metadata.
+- `internal/store/` — the user-level state dir (`~/.fence`): packs installed via
+  `fence add` (the packs dir is the source of truth) + `packs.lock.json` metadata.
 - `internal/registry/` — fetch + sha256-verify packs from a static index
   (`registry/` in this repo, read raw off main). Only the explicit commands
   import it — **nothing on the eval path may ever touch the network**.
 - `internal/cli/` — Cobra commands: `check`, `hook`, `init`, `add`, `search`,
   `update`, `remove`, `version`.
-- `cmd/leash/` — entrypoint; `version` is injected via `-ldflags "-X main.version=..."`.
+- `cmd/fence/` — entrypoint; `version` is injected via `-ldflags "-X main.version=..."`.
 
 ## Conventions (load-bearing)
 
@@ -66,13 +66,13 @@ central audit, and approval workflows out of scope.
 ## Rulepacks
 
 - Layering order: the embedded `recommended` pack (always active), then packs
-  installed with `leash add` (`~/.leash/packs`, a-z), then `./.leash.yaml`
+  installed with `fence add` (`~/.fence/packs`, a-z), then `./.fence.yaml`
   (auto-discovered), then `--rules <file>`. Any pack can pull others in below
   itself with `extends:` (installed name or relative path; resolved in
   `internal/policy/resolve.go`, never over the network).
 - When several rules match, the most severe effect wins (`deny` > `ask` > `warn`
   > `allow`). Default when nothing matches is `allow`.
-- Ambient sources (installed packs, `.leash.yaml`) degrade on error — warn and
+- Ambient sources (installed packs, `.fence.yaml`) degrade on error — warn and
   skip, the rest keep protecting; an explicit `--rules` failure stays loud.
 - Seed packs live in `registry/packs/` + `registry/index.yaml`; after editing a
   pack, recompute its `sha256` in the index (the seed test enforces this).

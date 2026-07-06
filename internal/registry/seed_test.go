@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hoophq/leash/internal/policy"
+	"github.com/hoophq/fence/internal/policy"
 )
 
 // seedIndex loads the registry shipped in this repo. It is the same path
-// leash add takes, so a stale sha256 in registry/index.yaml fails here first,
+// fence add takes, so a stale sha256 in registry/index.yaml fails here first,
 // not on a user's machine.
 func seedIndex(t *testing.T) (*Client, *Index) {
 	t.Helper()

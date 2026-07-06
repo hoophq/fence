@@ -1,6 +1,6 @@
 # Architecture
 
-Leash is an **agent-neutral core** with **per-agent adapters**. The core reasons
+Fence is an **agent-neutral core** with **per-agent adapters**. The core reasons
 about a normalized action; each adapter teaches one agent how to speak to it.
 
 ```
@@ -31,7 +31,7 @@ makes one rulepack portable across all of them.
 ## Semantic, not substring
 
 This is the whole point. A denylist that greps for `rm -rf` is dodged by
-`rm -fr`, `rm -r -f`, `sudo rm -rf`, or a script written then run. Leash instead
+`rm -fr`, `rm -r -f`, `sudo rm -rf`, or a script written then run. Fence instead
 parses the command into a shell AST and asks *what does this do?* — so flag
 order, `sudo`/`env` wrappers, and `$HOME` vs `~` all collapse to the same fact.
 The same discipline keeps false positives near zero: `rm -rf node_modules` and
@@ -43,8 +43,8 @@ modelled — never as the primary mechanism.
 ## Fails open
 
 A guardrail must never brick the agent it protects. If an input can't be parsed
-or an internal error occurs, Leash logs to stderr and exits 0 — the command
-proceeds as if Leash weren't installed. Decisions travel through the agent's JSON
+or an internal error occurs, Fence logs to stderr and exits 0 — the command
+proceeds as if Fence weren't installed. Decisions travel through the agent's JSON
 protocol (e.g. Claude Code's `permissionDecision`), never through exit codes.
 What that trade costs — and every other accepted limit — is written down in
 the [threat model](threat-model.md).
@@ -57,12 +57,12 @@ the [threat model](threat-model.md).
 | `internal/analyzer/shell` | shell-AST analysis → semantic facts (the differentiator) |
 | `internal/analyzer/manifest` | content analysis of `package.json` / `setup.py` for install hooks |
 | `internal/adapter/<agent>` | translate one agent's tool call ⇄ neutral `Action` |
-| `internal/store` | the user-level state dir (`~/.leash`): installed packs + lockfile |
+| `internal/store` | the user-level state dir (`~/.fence`): installed packs + lockfile |
 | `internal/registry` | fetch + checksum-verify packs from a static index (never on the eval path) |
 | `internal/cli` | the `check`, `hook`, `init`, `add`, `search`, `update`, `remove`, `version` commands |
-| `cmd/leash` | entrypoint |
+| `cmd/fence` | entrypoint |
 
-## Extending Leash
+## Extending Fence
 
 Three clean extension points:
 
@@ -74,8 +74,8 @@ Three clean extension points:
   table-driven test that pins **both** the catch and the safe cases — the
   false-positive discipline is the product.
 - **A new rulepack** = a YAML file anyone can publish to the
-  [registry](registry.md) and anyone can install with `leash add` — no Go
+  [registry](registry.md) and anyone can install with `fence add` — no Go
   involved. Because packs are agent-neutral, one published pack guards every
-  agent Leash supports.
+  agent Fence supports.
 
 See [Rules](rules.md) for the match conditions those facts expose.

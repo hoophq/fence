@@ -1,11 +1,11 @@
-// Assemble the npm packages for a release: the main @hoophq/leash package plus
-// one @hoophq/leash-<os>-<cpu> package per platform, each carrying a natively
+// Assemble the npm packages for a release: the main @hoophq/fence package plus
+// one @hoophq/fence-<os>-<cpu> package per platform, each carrying a natively
 // cross-compiled binary. The main package selects the right one at install time
 // via optionalDependencies + os/cpu (the esbuild/biome pattern — no postinstall,
-// no runtime download). leash is pure Go, so cross-compilation is just `go build`
+// no runtime download). fence is pure Go, so cross-compilation is just `go build`
 // with GOOS/GOARCH.
 //
-//   node npm/build.mjs <version>     # -> npm/build/{leash, @hoophq/leash-*}
+//   node npm/build.mjs <version>     # -> npm/build/{fence, @hoophq/fence-*}
 //
 // The release workflow runs this then `npm publish`es each package directory.
 
@@ -37,14 +37,14 @@ rmSync(outDir, { recursive: true, force: true });
 
 const optionalDependencies = {};
 for (const t of targets) {
-  const name = `${scope}/leash-${t.os}-${t.cpu}`;
+  const name = `${scope}/fence-${t.os}-${t.cpu}`;
   const pkgDir = join(outDir, name);
-  const binPath = join(pkgDir, "bin", "leash");
+  const binPath = join(pkgDir, "bin", "fence");
   mkdirSync(dirname(binPath), { recursive: true });
 
   execFileSync(
     "go",
-    ["build", "-trimpath", "-ldflags", `-s -w -X main.version=${version}`, "-o", binPath, "./cmd/leash"],
+    ["build", "-trimpath", "-ldflags", `-s -w -X main.version=${version}`, "-o", binPath, "./cmd/fence"],
     { cwd: repoRoot, stdio: "inherit", env: { ...process.env, GOOS: t.goos, GOARCH: t.goarch, CGO_ENABLED: "0" } }
   );
   chmodSync(binPath, 0o755);
@@ -55,8 +55,8 @@ for (const t of targets) {
       {
         name,
         version,
-        description: `Prebuilt leash binary for ${t.os}-${t.cpu}`,
-        repository: "github:hoophq/leash",
+        description: `Prebuilt fence binary for ${t.os}-${t.cpu}`,
+        repository: "github:hoophq/fence",
         license: "MIT",
         os: [t.os],
         cpu: [t.cpu],
@@ -71,21 +71,21 @@ for (const t of targets) {
 }
 
 // Main package: the bin shim + a manifest that pulls in exactly one platform pkg.
-const mainDir = join(outDir, "leash");
+const mainDir = join(outDir, "fence");
 mkdirSync(join(mainDir, "bin"), { recursive: true });
-cpSync(join(here, "bin", "leash.js"), join(mainDir, "bin", "leash.js"));
+cpSync(join(here, "bin", "fence.js"), join(mainDir, "bin", "fence.js"));
 cpSync(join(here, "README.md"), join(mainDir, "README.md"));
 writeFileSync(
   join(mainDir, "package.json"),
   JSON.stringify(
     {
-      name: `${scope}/leash`,
+      name: `${scope}/fence`,
       version,
       description: "Guardrails for AI coding agents — blocks catastrophic tool calls before they run",
-      repository: "github:hoophq/leash",
-      homepage: "https://github.com/hoophq/leash",
+      repository: "github:hoophq/fence",
+      homepage: "https://github.com/hoophq/fence",
       license: "MIT",
-      bin: { leash: "bin/leash.js" },
+      bin: { fence: "bin/fence.js" },
       optionalDependencies,
       files: ["bin"],
     },
@@ -93,4 +93,4 @@ writeFileSync(
     2
   ) + "\n"
 );
-console.log(`assembled ${scope}/leash`);
+console.log(`assembled ${scope}/fence`);

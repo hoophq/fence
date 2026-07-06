@@ -1,4 +1,4 @@
-// Package codex adapts OpenAI Codex CLI's hooks protocol to Leash's
+// Package codex adapts OpenAI Codex CLI's hooks protocol to Fence's
 // agent-neutral policy model.
 //
 // Codex invokes a PreToolUse hook with a JSON object on stdin describing the
@@ -10,9 +10,9 @@
 // whole patch text under the same "command" key. See
 // https://developers.openai.com/codex/hooks .
 //
-// Leash communicates exclusively through the JSON contract (never via exit
+// Fence communicates exclusively through the JSON contract (never via exit
 // codes) and fails open: if the input cannot be understood, the tool call
-// proceeds as if Leash were not installed.
+// proceeds as if Fence were not installed.
 package codex
 
 import (
@@ -21,10 +21,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hoophq/leash/internal/policy"
+	"github.com/hoophq/fence/internal/policy"
 )
 
-// hookInput is the subset of Codex's PreToolUse payload Leash needs.
+// hookInput is the subset of Codex's PreToolUse payload Fence needs.
 type hookInput struct {
 	Cwd       string          `json:"cwd"`
 	ToolName  string          `json:"tool_name"`
@@ -40,7 +40,7 @@ type toolInput struct {
 // ParseActions reads a PreToolUse payload from r and normalizes it into the
 // neutral actions it implies. A Bash call is one shell action; an apply_patch
 // call expands to one file_write per file the patch touches, so path and
-// content rules see every file individually. Tool names Leash does not
+// content rules see every file individually. Tool names Fence does not
 // evaluate (MCP tools, spawn_agent) yield a single ActionUnknown action,
 // which the engine allows by default.
 func ParseActions(r io.Reader) ([]policy.Action, error) {
@@ -132,7 +132,7 @@ func patchActions(cwd, patch string) []policy.Action {
 
 // hookOutput is the hook response envelope. SystemMessage is a line Codex
 // shows to the user; HookSpecificOutput carries the permission decision and
-// is omitted entirely when Leash has no opinion (warn feedback, allow
+// is omitted entirely when Fence has no opinion (warn feedback, allow
 // feedback, the session banner).
 type hookOutput struct {
 	SystemMessage      string              `json:"systemMessage,omitempty"`
@@ -150,12 +150,12 @@ type hookSpecificOutput struct {
 //   - deny  -> permissionDecision "deny"  (blocks the tool call) + notice
 //   - ask   -> permissionDecision "ask"   (forces an approval prompt) + notice
 //   - warn  -> no decision emitted; notice only; action proceeds
-//   - allow -> a notice (no decision) confirms Leash looked; with quiet,
+//   - allow -> a notice (no decision) confirms Fence looked; with quiet,
 //     nothing at all
 //
 // An explicit "allow" decision is never emitted: in Codex it would let the
 // call proceed without surfacing the normal approval prompt, bypassing the
-// user's own approval policy. Leash only ever tightens.
+// user's own approval policy. Fence only ever tightens.
 func WriteDecision(w io.Writer, d policy.Decision, quiet bool) error {
 	switch d.Effect {
 	case policy.EffectDeny:
@@ -179,17 +179,17 @@ func WriteDecision(w io.Writer, d policy.Decision, quiet bool) error {
 }
 
 // WriteSessionStart emits the SessionStart response: a banner telling the
-// user Leash is active — and, when ambient rulepacks failed to load, that the
+// user Fence is active — and, when ambient rulepacks failed to load, that the
 // session runs with less than the configured protection.
 func WriteSessionStart(w io.Writer, version string, packs, rules, failed int) error {
-	name := "Leash"
+	name := "Fence"
 	if version != "" {
 		if version[0] >= '0' && version[0] <= '9' {
 			version = "v" + version
 		}
 		name += " " + version
 	}
-	msg := fmt.Sprintf("🐕 %s is guarding this session (%s, %s)",
+	msg := fmt.Sprintf("🚧 %s is guarding this session (%s, %s)",
 		name, plural(packs, "pack"), plural(rules, "rule"))
 	if failed > 0 {
 		msg += fmt.Sprintf(" — ⚠️ %s failed to load", plural(failed, "rulepack"))
@@ -202,7 +202,7 @@ func WriteSessionStart(w io.Writer, version string, packs, rules, failed int) er
 // is that this session is not being screened.
 func WriteSessionStartDegraded(w io.Writer) error {
 	return emit(w, hookOutput{
-		SystemMessage: "🐕 Leash could not load its rules — tool calls in this session are NOT being screened (see stderr in the transcript)",
+		SystemMessage: "🚧 Fence could not load its rules — tool calls in this session are NOT being screened (see stderr in the transcript)",
 	})
 }
 
@@ -219,23 +219,23 @@ func preToolUse(decision, reason string) *hookSpecificOutput {
 }
 
 // systemMessage builds the one-line notice for a decision, e.g.
-// "🐕 Leash is asking first: Force-push detected. … (rule: git-force-push)".
+// "🚧 Fence is asking first: Force-push detected. … (rule: git-force-push)".
 func systemMessage(verb string, d policy.Decision) string {
 	// Rule messages may be multi-line YAML blocks; a notice is one line.
 	reason := strings.Join(strings.Fields(decisionReason(d)), " ")
 
 	var b strings.Builder
-	b.WriteString("🐕 ")
+	b.WriteString("🚧 ")
 	switch {
 	case reason == "":
-		b.WriteString("Leash ")
+		b.WriteString("Fence ")
 		b.WriteString(verb)
-	// Many rule messages already speak as Leash ("Leash blocked a recursive
+	// Many rule messages already speak as Fence ("Fence blocked a recursive
 	// delete …"); prefixing the verb again would stutter.
-	case len(reason) >= 6 && strings.EqualFold(reason[:6], "leash "):
+	case len(reason) >= 6 && strings.EqualFold(reason[:6], "fence "):
 		b.WriteString(reason)
 	default:
-		b.WriteString("Leash ")
+		b.WriteString("Fence ")
 		b.WriteString(verb)
 		b.WriteString(": ")
 		b.WriteString(reason)

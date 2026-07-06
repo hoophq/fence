@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/hoophq/leash/security/advisories/new
-    about: "Exploitable issues in Leash itself — please report privately, not as a public issue. SECURITY.md explains what belongs here."
+    url: https://github.com/hoophq/fence/security/advisories/new
+    about: "Exploitable issues in Fence itself — please report privately, not as a public issue. SECURITY.md explains what belongs here."

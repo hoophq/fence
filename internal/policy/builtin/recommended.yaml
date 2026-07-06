@@ -1,4 +1,4 @@
-# Leash recommended rulepack.
+# Fence recommended rulepack.
 #
 # Philosophy: a guardrail that produces false positives gets uninstalled. Only
 # unambiguous, almost-never-intentional catastrophes are denied outright; for
@@ -15,7 +15,7 @@ rules:
     severity: critical
     effect: deny
     message: >-
-      Leash blocked a recursive delete aimed at a sensitive location
+      Fence blocked a recursive delete aimed at a sensitive location
       (home, root, or a system path). This is almost never what you want from an
       agent. If you really mean it, run the command yourself.
     match:
@@ -40,7 +40,7 @@ rules:
     severity: critical
     effect: deny
     message: >-
-      Leash blocked a chmod that makes a sensitive location (home, root, or a
+      Fence blocked a chmod that makes a sensitive location (home, root, or a
       system path) world-writable. This is almost never intended.
     match:
       shell:
@@ -63,7 +63,7 @@ rules:
     severity: critical
     effect: deny
     message: >-
-      Leash blocked a destructive write to a raw disk or block device (via dd,
+      Fence blocked a destructive write to a raw disk or block device (via dd,
       mkfs, or a redirect to /dev/sd*, /dev/nvme*, /dev/disk*, …). This wipes the
       target irreversibly and is almost never intended from an agent. If you
       really mean it, run the command yourself.
@@ -111,7 +111,7 @@ rules:
     severity: critical
     effect: deny
     message: >-
-      Leash blocked likely credential exfiltration — a private key or cloud
+      Fence blocked likely credential exfiltration — a private key or cloud
       credential is being read and routed to the network. If this is genuinely
       intended, run it yourself.
     match:
@@ -170,7 +170,7 @@ rules:
     description: Classic shell fork bomb
     severity: critical
     effect: deny
-    message: Leash blocked what looks like a fork bomb.
+    message: Fence blocked what looks like a fork bomb.
     match:
       shell:
         fork_bomb: true

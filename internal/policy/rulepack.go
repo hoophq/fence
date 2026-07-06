@@ -75,17 +75,17 @@ func LoadFile(path string) (*Rulepack, error) {
 // RecommendedName is the name of the embedded, always-active pack.
 const RecommendedName = "recommended"
 
-// Recommended returns the rulepack shipped with Leash.
+// Recommended returns the rulepack shipped with Fence.
 func Recommended() *Rulepack {
 	f, err := builtinFS.Open("builtin/recommended.yaml")
 	if err != nil {
-		panic(fmt.Sprintf("leash: embedded recommended pack missing: %v", err))
+		panic(fmt.Sprintf("fence: embedded recommended pack missing: %v", err))
 	}
 	defer f.Close()
 	pack, err := Load(f)
 	if err != nil {
 		// A broken embedded pack is a build-time defect, not a runtime input.
-		panic(fmt.Sprintf("leash: embedded recommended pack invalid: %v", err))
+		panic(fmt.Sprintf("fence: embedded recommended pack invalid: %v", err))
 	}
 	return pack
 }
@@ -95,7 +95,7 @@ func (p *Rulepack) validate() error {
 		return fmt.Errorf("rulepack %q has invalid schema %d", p.Name, p.Schema)
 	}
 	if p.Schema > RulepackSchema {
-		return fmt.Errorf("rulepack %q requires schema %d, but this leash understands up to %d — upgrade leash",
+		return fmt.Errorf("rulepack %q requires schema %d, but this fence understands up to %d — upgrade fence",
 			p.Name, p.Schema, RulepackSchema)
 	}
 	if p.Default != "" && !p.Default.Valid() {

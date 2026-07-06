@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hoophq/leash/internal/store"
+	"github.com/hoophq/fence/internal/store"
 	"github.com/spf13/cobra"
 )
 
 func newRemoveCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <pack>",
-		Short: "Uninstall a rulepack installed with `leash add`",
+		Short: "Uninstall a rulepack installed with `fence add`",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := openStore()

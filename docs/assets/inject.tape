@@ -1,4 +1,4 @@
-# Leash prompt-injection demo — render from the repo root:  vhs docs/assets/inject.tape
+# Fence prompt-injection demo — render from the repo root:  vhs docs/assets/inject.tape
 Output docs/assets/inject.gif
 
 Set Shell "bash"

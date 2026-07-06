@@ -46,7 +46,7 @@ rules:
     effect: deny
     match: {regex: 'x'}
 `,
-			wantErr: "upgrade leash",
+			wantErr: "upgrade fence",
 		},
 		{
 			name:    "negative schema is invalid",

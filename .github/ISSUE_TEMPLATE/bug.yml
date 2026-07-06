@@ -6,7 +6,7 @@ body:
     id: what
     attributes:
       label: What happened
-      description: Include the command you ran and any stderr — Leash logs its warnings there.
+      description: Include the command you ran and any stderr — Fence logs its warnings there.
     validations:
       required: true
   - type: textarea
@@ -24,8 +24,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Leash version
-      description: "`leash version`"
+      label: Fence version
+      description: "`fence version`"
     validations:
       required: true
   - type: input

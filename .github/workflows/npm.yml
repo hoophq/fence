@@ -46,7 +46,7 @@ jobs:
       - name: Publish
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          for dir in npm/build/@hoophq/* npm/build/leash; do
+          for dir in npm/build/@hoophq/* npm/build/fence; do
             npm publish "$dir" --access public
           done
         env:

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hoophq/leash/internal/registry"
-	"github.com/hoophq/leash/internal/store"
+	"github.com/hoophq/fence/internal/registry"
+	"github.com/hoophq/fence/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -58,6 +58,6 @@ func runSearch(out io.Writer, st *store.Store, client *registry.Client, query st
 			fmt.Fprintf(out, "    %s\n", c.dim(wrap(collapse(e.Description), 72, "    ")))
 		}
 	}
-	fmt.Fprintf(out, "\n%s\n", c.dim("install one with: leash add <pack>"))
+	fmt.Fprintf(out, "\n%s\n", c.dim("install one with: fence add <pack>"))
 	return nil
 }

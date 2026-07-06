@@ -1,4 +1,4 @@
-// Package policy defines Leash's agent-neutral guardrail model: the normalized
+// Package policy defines Fence's agent-neutral guardrail model: the normalized
 // Action an agent wants to perform, the Effect a rule applies, and the Engine
 // that evaluates rulepacks against an Action.
 //

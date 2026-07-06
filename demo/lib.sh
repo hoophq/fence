@@ -1,4 +1,4 @@
-# Shared styling + helpers for the Leash demo players (demo/*.sh), rendered to
+# Shared styling + helpers for the Fence demo players (demo/*.sh), rendered to
 # GIFs by docs/assets/*.tape via VHS. 24-bit color keeps contrast consistent
 # regardless of the terminal theme.
 e=$'\e'

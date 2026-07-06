@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hoophq/leash/internal/policy"
-	"github.com/hoophq/leash/internal/store"
+	"github.com/hoophq/fence/internal/policy"
+	"github.com/hoophq/fence/internal/store"
 )
 
 func writeTestFile(t *testing.T, path, content string) string {
@@ -27,7 +27,7 @@ func evalShell(t *testing.T, e *policy.Engine, command string) policy.Effect {
 	return e.Evaluate(policy.Action{Kind: policy.ActionShell, Command: command, Cwd: "/w"}).Effect
 }
 
-// chdirEmpty moves the test into an empty directory so a real ./.leash.yaml
+// chdirEmpty moves the test into an empty directory so a real ./.fence.yaml
 // can never leak into discovery.
 func chdirEmpty(t *testing.T) string {
 	t.Helper()
@@ -115,18 +115,18 @@ rules:
 
 func TestBuildEngineCorruptProjectRulesDegrade(t *testing.T) {
 	dir := chdirEmpty(t)
-	writeTestFile(t, filepath.Join(dir, ".leash.yaml"), "rules:\n  - id: x\n    effect: nope\n")
+	writeTestFile(t, filepath.Join(dir, ".fence.yaml"), "rules:\n  - id: x\n    effect: nope\n")
 
 	var stderr bytes.Buffer
 	e, failed, err := buildEngineWithStore(nil, "", &stderr)
 	if err != nil {
-		t.Fatalf("a corrupt .leash.yaml must not abort the engine: %v", err)
+		t.Fatalf("a corrupt .fence.yaml must not abort the engine: %v", err)
 	}
 	if failed != 1 {
-		t.Errorf("failed sources = %d, want 1 (the corrupt .leash.yaml)", failed)
+		t.Errorf("failed sources = %d, want 1 (the corrupt .fence.yaml)", failed)
 	}
 	if stderr.Len() == 0 {
-		t.Fatal("want a warning about the corrupt .leash.yaml")
+		t.Fatal("want a warning about the corrupt .fence.yaml")
 	}
 	if got := evalShell(t, e, "rm -rf ~"); got != policy.EffectDeny {
 		t.Fatalf("rm -rf ~ = %q, want deny", got)
@@ -142,7 +142,7 @@ func TestBuildEngineCorruptRulesFlagIsLoud(t *testing.T) {
 }
 
 // futurePack declares a rulepack schema newer than this build understands —
-// e.g. published for a leash with match vocabulary this binary lacks.
+// e.g. published for a fence with match vocabulary this binary lacks.
 const futurePack = `schema: 99
 name: future
 rules:
@@ -168,7 +168,7 @@ func TestBuildEngineNewerSchemaPackDegrades(t *testing.T) {
 	if failed != 1 {
 		t.Errorf("failed sources = %d, want 1 (the newer-schema pack)", failed)
 	}
-	if !strings.Contains(stderr.String(), "upgrade leash") {
+	if !strings.Contains(stderr.String(), "upgrade fence") {
 		t.Fatalf("want a warning telling the user to upgrade, got %q", stderr.String())
 	}
 	// The skipped pack's rules must not be half-applied.
@@ -184,12 +184,12 @@ func TestBuildEngineNewerSchemaRulesFlagIsLoud(t *testing.T) {
 	chdirEmpty(t)
 	future := writeTestFile(t, filepath.Join(t.TempDir(), "future.yaml"), futurePack)
 	_, _, err := buildEngineWithStore(nil, future, &bytes.Buffer{})
-	if err == nil || !strings.Contains(err.Error(), "upgrade leash") {
+	if err == nil || !strings.Contains(err.Error(), "upgrade fence") {
 		t.Fatalf("an explicit --rules file with a newer schema must fail loudly, got %v", err)
 	}
 }
 
-// Layering order: recommended < installed < .leash.yaml < --rules.
+// Layering order: recommended < installed < .fence.yaml < --rules.
 func TestBuildEngineLayeringOrder(t *testing.T) {
 	dir := chdirEmpty(t)
 	st := store.Open(t.TempDir())
@@ -198,7 +198,7 @@ func TestBuildEngineLayeringOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	// …the project pack re-hardens it to ask…
-	writeTestFile(t, filepath.Join(dir, ".leash.yaml"), "name: project\noverrides:\n  git-force-push: ask\n")
+	writeTestFile(t, filepath.Join(dir, ".fence.yaml"), "name: project\noverrides:\n  git-force-push: ask\n")
 	// …and the --rules file has the last word: deny.
 	rules := writeTestFile(t, filepath.Join(t.TempDir(), "rules.yaml"), "name: flag\noverrides:\n  git-force-push: deny\n")
 
@@ -211,7 +211,7 @@ func TestBuildEngineLayeringOrder(t *testing.T) {
 	}
 }
 
-// A .leash.yaml can extend an installed pack by name.
+// A .fence.yaml can extend an installed pack by name.
 func TestBuildEngineProjectExtendsInstalledPack(t *testing.T) {
 	dir := chdirEmpty(t)
 	st := store.Open(t.TempDir())
@@ -228,7 +228,7 @@ rules:
 	// Remove it from ambient activation? No — installed packs are always
 	// active; extends from the project just also pins it. Both paths must
 	// dedupe to a single load.
-	writeTestFile(t, filepath.Join(dir, ".leash.yaml"), "name: project\nextends: [base]\noverrides:\n  base-marker: ask\n")
+	writeTestFile(t, filepath.Join(dir, ".fence.yaml"), "name: project\nextends: [base]\noverrides:\n  base-marker: ask\n")
 
 	var stderr bytes.Buffer
 	e, _, err := buildEngineWithStore(st, "", &stderr)
@@ -245,15 +245,15 @@ rules:
 
 func TestBuildEngineMissingExtendsTargetWarns(t *testing.T) {
 	dir := chdirEmpty(t)
-	writeTestFile(t, filepath.Join(dir, ".leash.yaml"), "name: project\nextends: [ghost]\n")
+	writeTestFile(t, filepath.Join(dir, ".fence.yaml"), "name: project\nextends: [ghost]\n")
 
 	var stderr bytes.Buffer
 	e, _, err := buildEngineWithStore(store.Open(t.TempDir()), "", &stderr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stderr.String(), "leash add ghost") {
-		t.Fatalf("want a `leash add ghost` hint, got %q", stderr.String())
+	if !strings.Contains(stderr.String(), "fence add ghost") {
+		t.Fatalf("want a `fence add ghost` hint, got %q", stderr.String())
 	}
 	if got := evalShell(t, e, "rm -rf ~"); got != policy.EffectDeny {
 		t.Fatalf("rm -rf ~ = %q, want deny", got)

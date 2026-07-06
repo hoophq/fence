@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// toolMatcher is the Claude Code tool-name regexp Leash hooks into: the tools
+// toolMatcher is the Claude Code tool-name regexp Fence hooks into: the tools
 // whose actions the engine actually evaluates.
 const toolMatcher = "Bash|Write|Edit|MultiEdit|NotebookEdit|WebFetch"
 
@@ -24,7 +24,7 @@ const codexToolMatcher = "^(Bash|apply_patch)$"
 // but not after every context compaction. Both agents use the same sources.
 const sessionStartMatcher = "startup|resume|clear"
 
-// hookAgent describes one agent leash can wire its hooks into: where the
+// hookAgent describes one agent fence can wire its hooks into: where the
 // hooks file lives, what shape identifies our entries, and what the matchers
 // are. Both agents speak the same {"hooks": {...}} JSON shape, so the
 // converge/remove machinery is shared.
@@ -45,7 +45,7 @@ var hookAgents = []hookAgent{
 		display:        "Claude Code",
 		dir:            ".claude",
 		file:           "settings.json",
-		invocation:     "leash hook claude-code",
+		invocation:     "fence hook claude-code",
 		preMatcher:     toolMatcher,
 		sessionMatcher: sessionStartMatcher,
 	},
@@ -54,7 +54,7 @@ var hookAgents = []hookAgent{
 		display:        "Codex",
 		dir:            ".codex",
 		file:           "hooks.json",
-		invocation:     "leash hook codex",
+		invocation:     "fence hook codex",
 		preMatcher:     codexToolMatcher,
 		sessionMatcher: sessionStartMatcher,
 		trustNote:      "Codex only runs hooks you've trusted: run /hooks inside Codex to review and trust them.",
@@ -85,8 +85,8 @@ func newInitCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "init [agent]",
-		Short: "Install the Leash hooks into an agent's settings",
-		Long: "Adds two hooks to an agent's settings: a PreToolUse hook so Leash\n" +
+		Short: "Install the Fence hooks into an agent's settings",
+		Long: "Adds two hooks to an agent's settings: a PreToolUse hook so Fence\n" +
 			"inspects each tool call, and a SessionStart hook that shows a banner\n" +
 			"confirming the session is guarded. The agent is claude-code (default)\n" +
 			"or codex. By default it writes the project settings (./.claude or\n" +
@@ -113,13 +113,13 @@ func newInitCommand() *cobra.Command {
 			}
 			switch result {
 			case hookInstalled:
-				fmt.Fprintf(cmd.OutOrStdout(), "Installed the Leash hooks in %s\n", path)
+				fmt.Fprintf(cmd.OutOrStdout(), "Installed the Fence hooks in %s\n", path)
 				fmt.Fprintf(cmd.OutOrStdout(), "Restart %s (or start a new session) to activate them.\n", agent.display)
 			case hookUpdated:
-				fmt.Fprintf(cmd.OutOrStdout(), "Updated the Leash hook commands in %s\n", path)
+				fmt.Fprintf(cmd.OutOrStdout(), "Updated the Fence hook commands in %s\n", path)
 				fmt.Fprintf(cmd.OutOrStdout(), "Restart %s (or start a new session) to pick them up.\n", agent.display)
 			default:
-				fmt.Fprintf(cmd.OutOrStdout(), "Leash hooks already present in %s\n", path)
+				fmt.Fprintf(cmd.OutOrStdout(), "Fence hooks already present in %s\n", path)
 			}
 			if agent.trustNote != "" && result != hookUnchanged {
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\n", agent.trustNote)
@@ -144,7 +144,7 @@ func newInitCommand() *cobra.Command {
 func initSupportedOS(goos string) error {
 	if goos == "windows" {
 		return fmt.Errorf("native Windows isn't supported yet (the hook path is unverified there, and a silently broken hook is worse than an honest no) — " +
-			"run Leash inside WSL, where it works exactly as on Linux, or follow https://github.com/hoophq/leash/issues/26")
+			"run Fence inside WSL, where it works exactly as on Linux, or follow https://github.com/hoophq/fence/issues/26")
 	}
 	return nil
 }
@@ -160,7 +160,7 @@ func settingsPath(agent hookAgent, global bool) (string, error) {
 	return filepath.Join(base, agent.dir, agent.file), nil
 }
 
-// hookSpec is one hook entry Leash wants present in the settings: the event to
+// hookSpec is one hook entry Fence wants present in the settings: the event to
 // hook, the matcher for new installs (an existing entry's matcher is never
 // touched — the user may have narrowed it), the exact command to run, and the
 // bare invocation that identifies an entry as ours.
@@ -171,7 +171,7 @@ type hookSpec struct {
 	invocation string
 }
 
-// desiredHooks returns the hook entries `leash init` converges the settings to.
+// desiredHooks returns the hook entries `fence init` converges the settings to.
 func desiredHooks(agent hookAgent, quiet bool) []hookSpec {
 	base := hookInvocation(agent)
 	pre := base
@@ -187,12 +187,12 @@ func desiredHooks(agent hookAgent, quiet bool) []hookSpec {
 // hookInvocation returns the command string the agent should run. It uses the
 // absolute path of the current binary so the hook works regardless of PATH, but
 // keeps symlinks unresolved: package managers point a stable symlink (e.g.
-// /opt/homebrew/bin/leash) at a version-pinned target that vanishes on upgrade,
+// /opt/homebrew/bin/fence) at a version-pinned target that vanishes on upgrade,
 // so resolving it would break the hook at the next `brew upgrade`.
 func hookInvocation(agent hookAgent) string {
 	exe, err := os.Executable()
 	if err != nil {
-		return agent.invocation // fall back to PATH lookup of "leash"
+		return agent.invocation // fall back to PATH lookup of "fence"
 	}
 	return fmt.Sprintf("%s hook %s", exe, agent.name)
 }
@@ -209,9 +209,9 @@ const (
 )
 
 // installHooks merges the desired hook entries into the settings file at path,
-// creating it if necessary. An existing leash hook whose command differs —
+// creating it if necessary. An existing fence hook whose command differs —
 // e.g. a stale binary path left by a previous install, or a quiet toggle —
-// is updated in place, so re-running `leash init` always converges on working
+// is updated in place, so re-running `fence init` always converges on working
 // hooks.
 func installHooks(path string, specs []hookSpec) (hookInstallResult, error) {
 	settings := map[string]any{}
@@ -276,7 +276,7 @@ func installHooks(path string, specs []hookSpec) (hookInstallResult, error) {
 	return result, nil
 }
 
-// convergeCommand rewrites an existing Leash hook command to the desired
+// convergeCommand rewrites an existing Fence hook command to the desired
 // invocation while keeping any trailing tokens init does not manage (a
 // hand-added --rules, say): the user put them there, and dropping them would
 // silently weaken their setup. The tokens init owns — the session-start
@@ -300,8 +300,8 @@ func convergeCommand(existing, desired, invocation string) string {
 	return desired + " " + strings.Join(extra, " ")
 }
 
-// containsHook reports whether cmd is a Leash hook invocation for the given
-// agent (e.g. "leash hook claude-code") — through any binary path, possibly
+// containsHook reports whether cmd is a Fence hook invocation for the given
+// agent (e.g. "fence hook claude-code") — through any binary path, possibly
 // followed by a subcommand or flags ("… session-start", "… --quiet").
 // Trailing shell syntax means the string only mentions the invocation rather
 // than being one, so it is not ours.
@@ -314,7 +314,7 @@ func containsHook(cmd, invocation string) bool {
 		return true
 	}
 	if rest[0] != ' ' {
-		return false // e.g. "leash hook claude-codex" vs "leash hook claude-code"
+		return false // e.g. "fence hook claude-codex" vs "fence hook claude-code"
 	}
 	for tok := range strings.FieldsSeq(rest) {
 		if strings.ContainsAny(tok, "|&;<>()`$\"'\\") {

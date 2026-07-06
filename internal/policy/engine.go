@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/hoophq/leash/internal/analyzer/manifest"
-	"github.com/hoophq/leash/internal/analyzer/shell"
+	"github.com/hoophq/fence/internal/analyzer/manifest"
+	"github.com/hoophq/fence/internal/analyzer/shell"
 )
 
 // Engine evaluates Actions against an ordered set of rules.

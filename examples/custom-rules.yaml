@@ -1,9 +1,9 @@
 # Example custom rulepack.
 #
 # Layer your own rules on top of the recommended pack by saving a file like this
-# as ./.leash.yaml in a project (auto-discovered), or by passing it explicitly:
+# as ./.fence.yaml in a project (auto-discovered), or by passing it explicitly:
 #
-#   leash check --rules ./examples/custom-rules.yaml 'terraform destroy'
+#   fence check --rules ./examples/custom-rules.yaml 'terraform destroy'
 #
 # Rules here are evaluated together with the recommended pack. When several rules
 # match, the most severe effect wins (deny > ask > warn > allow).

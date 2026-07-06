@@ -3,8 +3,8 @@
 # Blocks `terraform destroy` outright and asks before state mutations and
 # unreviewed applies. `terraform plan -destroy` (a preview) stays untouched.
 #
-# Install:  leash add terraform-safety
-# Soften:   overrides: { terraform-destroy: ask }  in your .leash.yaml
+# Install:  fence add terraform-safety
+# Soften:   overrides: { terraform-destroy: ask }  in your .fence.yaml
 schema: 1
 name: terraform-safety
 

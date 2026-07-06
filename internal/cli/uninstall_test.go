@@ -9,7 +9,7 @@ import (
 )
 
 func TestRemoveHooks(t *testing.T) {
-	leashOnly := `{"hooks":{
+	fenceOnly := `{"hooks":{
 		"PreToolUse":[{"matcher":"Bash|Write","hooks":[{"type":"command","command":"` + wantCommand + `"}]}],
 		"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"` + wantSessionCommand + `"}]}]}}`
 
@@ -23,7 +23,7 @@ func TestRemoveHooks(t *testing.T) {
 	}{
 		{
 			name:    "removes both hooks",
-			initial: leashOnly,
+			initial: fenceOnly,
 			want:    hookRemoved,
 		},
 		{
@@ -34,8 +34,8 @@ func TestRemoveHooks(t *testing.T) {
 		{
 			name: "quiet and stale-path variants are still ours",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/stale/leash hook claude-code --quiet"}]}],
-				"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"leash hook claude-code session-start"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/stale/fence hook claude-code --quiet"}]}],
+				"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"fence hook claude-code session-start"}]}]}}`,
 			want: hookRemoved,
 		},
 		{
@@ -65,9 +65,9 @@ func TestRemoveHooks(t *testing.T) {
 		{
 			name: "a string that merely mentions the invocation is not ours",
 			initial: `{"hooks":{
-				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"echo leash hook claude-code | wc -l"}]}]}}`,
+				"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"echo fence hook claude-code | wc -l"}]}]}}`,
 			want:    hookAbsent,
-			preCmds: []string{"echo leash hook claude-code | wc -l"},
+			preCmds: []string{"echo fence hook claude-code | wc -l"},
 		},
 	}
 
@@ -158,9 +158,9 @@ func TestRemoveHooksRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
-// The real command end to end, against settings as `leash init` writes them.
+// The real command end to end, against settings as `fence init` writes them.
 // (init itself can't produce them here: under `go test` the binary is
-// cli.test, not leash, so containsHook wouldn't own the result.)
+// cli.test, not fence, so containsHook wouldn't own the result.)
 func TestUninstallCommand(t *testing.T) {
 	isolateHome(t)
 	wd, err := os.Getwd()
@@ -172,8 +172,8 @@ func TestUninstallCommand(t *testing.T) {
 		"PreToolUse":[{"matcher":"Bash|Write","hooks":[{"type":"command","command":"`+wantCommand+`"}]}],
 		"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"`+wantSessionCommand+`"}]}]}}`)
 
-	out := runLeash(t, "", "uninstall")
-	if !strings.Contains(out, "Removed the Leash hooks") {
+	out := runFence(t, "", "uninstall")
+	if !strings.Contains(out, "Removed the Fence hooks") {
 		t.Fatalf("uninstall output = %q, want a removal confirmation", out)
 	}
 
@@ -186,7 +186,7 @@ func TestUninstallCommand(t *testing.T) {
 	}
 
 	// Running it again is a friendly no-op.
-	if out := runLeash(t, "", "uninstall"); !strings.Contains(out, "No Leash hooks found") {
+	if out := runFence(t, "", "uninstall"); !strings.Contains(out, "No Fence hooks found") {
 		t.Fatalf("second uninstall output = %q, want the no-op message", out)
 	}
 }

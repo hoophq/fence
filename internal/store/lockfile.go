@@ -27,7 +27,7 @@ func NewLockEntry(version, sha256, source string) LockEntry {
 
 // Lockfile is the metadata sidecar for installed packs. It never decides what
 // is active — the packs directory does — it only remembers versions and
-// sources for `leash update` and `leash search`.
+// sources for `fence update` and `fence search`.
 type Lockfile struct {
 	Schema int                  `json:"schema"`
 	Packs  map[string]LockEntry `json:"packs"`

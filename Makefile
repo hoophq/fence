@@ -1,16 +1,16 @@
-BINARY := leash
-PKG := github.com/hoophq/leash
+BINARY := fence
+PKG := github.com/hoophq/fence
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build install test vet fmt tidy clean
 
-build: ## Build the leash binary into ./dist
+build: ## Build the fence binary into ./dist
 	@mkdir -p dist
-	go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY) ./cmd/leash
+	go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY) ./cmd/fence
 
-install: ## Install leash into $GOBIN / $GOPATH/bin
-	go install -ldflags "$(LDFLAGS)" ./cmd/leash
+install: ## Install fence into $GOBIN / $GOPATH/bin
+	go install -ldflags "$(LDFLAGS)" ./cmd/fence
 
 test: ## Run all tests
 	go test ./...

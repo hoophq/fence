@@ -1,4 +1,4 @@
-# Leash ask/confirm demo — render from the repo root:  vhs docs/assets/ask.tape
+# Fence ask/confirm demo — render from the repo root:  vhs docs/assets/ask.tape
 Output docs/assets/ask.gif
 
 Set Shell "bash"

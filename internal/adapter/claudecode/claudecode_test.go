@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hoophq/leash/internal/policy"
+	"github.com/hoophq/fence/internal/policy"
 )
 
 func TestParseActionContent(t *testing.T) {
@@ -98,24 +98,24 @@ func TestWriteDecision(t *testing.T) {
 			d:            policy.Decision{Effect: policy.EffectDeny, Rule: rule},
 			wantDecision: "deny",
 			wantReason:   "Recursive delete of your home directory",
-			wantMsgParts: []string{"Leash blocked this", "Recursive delete", "(rule: rm-recursive-home)"},
+			wantMsgParts: []string{"Fence blocked this", "Recursive delete", "(rule: rm-recursive-home)"},
 		},
 		{
 			name:         "ask prompts and announces",
 			d:            policy.Decision{Effect: policy.EffectAsk, Rule: rule},
 			wantDecision: "ask",
 			wantReason:   "Recursive delete of your home directory",
-			wantMsgParts: []string{"Leash is asking first"},
+			wantMsgParts: []string{"Fence is asking first"},
 		},
 		{
 			name:         "warn announces without a decision so the call proceeds",
 			d:            policy.Decision{Effect: policy.EffectWarn, Rule: rule},
-			wantMsgParts: []string{"Leash flagged this", "(rule: rm-recursive-home)"},
+			wantMsgParts: []string{"Fence flagged this", "(rule: rm-recursive-home)"},
 		},
 		{
 			name:         "allow announces without a decision by default",
 			d:            policy.Decision{Effect: policy.EffectAllow},
-			wantMsgParts: []string{"Leash allowed this"},
+			wantMsgParts: []string{"Fence allowed this"},
 		},
 		{
 			name:      "quiet allow stays silent",
@@ -127,7 +127,7 @@ func TestWriteDecision(t *testing.T) {
 			name:         "deny from a pack default has no rule to cite",
 			d:            policy.Decision{Effect: policy.EffectDeny},
 			wantDecision: "deny",
-			wantMsgParts: []string{"Leash blocked this"},
+			wantMsgParts: []string{"Fence blocked this"},
 		},
 		{
 			name: "multi-line rule message collapses to one chat line",
@@ -140,14 +140,14 @@ func TestWriteDecision(t *testing.T) {
 			wantMsgParts: []string{"line one line two"},
 		},
 		{
-			name: "a reason that already speaks as Leash is not double-branded",
+			name: "a reason that already speaks as Fence is not double-branded",
 			d: policy.Decision{Effect: policy.EffectDeny, Rule: &policy.Rule{
 				ID:      "destructive-delete-sensitive",
-				Message: "Leash blocked a recursive delete aimed at a sensitive location.",
+				Message: "Fence blocked a recursive delete aimed at a sensitive location.",
 			}},
 			wantDecision: "deny",
-			wantReason:   "Leash blocked a recursive delete aimed at a sensitive location.",
-			wantMsgParts: []string{"🐕 Leash blocked a recursive delete"},
+			wantReason:   "Fence blocked a recursive delete aimed at a sensitive location.",
+			wantMsgParts: []string{"🚧 Fence blocked a recursive delete"},
 		},
 	}
 
@@ -176,8 +176,8 @@ func TestWriteDecision(t *testing.T) {
 			if strings.Contains(msg, "\n") {
 				t.Errorf("systemMessage must be a single line, got %q", msg)
 			}
-			if n := strings.Count(msg, "Leash"); n != 1 {
-				t.Errorf("systemMessage should name Leash exactly once, got %d in %q", n, msg)
+			if n := strings.Count(msg, "Fence"); n != 1 {
+				t.Errorf("systemMessage should name Fence exactly once, got %d in %q", n, msg)
 			}
 
 			hso, hasHSO := out["hookSpecificOutput"].(map[string]any)
@@ -221,22 +221,22 @@ func TestWriteSessionStart(t *testing.T) {
 		{
 			name:    "release version gets a v prefix",
 			version: "0.0.4", packs: 3, rules: 42,
-			want: []string{"Leash v0.0.4", "3 packs", "42 rules", "guarding this session"},
+			want: []string{"Fence v0.0.4", "3 packs", "42 rules", "guarding this session"},
 		},
 		{
 			name:    "git-describe version is kept as-is",
 			version: "v0.0.4-2-gabc1234", packs: 2, rules: 40,
-			want: []string{"Leash v0.0.4-2-gabc1234"},
+			want: []string{"Fence v0.0.4-2-gabc1234"},
 		},
 		{
 			name:    "dev build and singular counts",
 			version: "dev", packs: 1, rules: 1,
-			want: []string{"Leash dev", "1 pack,", "1 rule)"},
+			want: []string{"Fence dev", "1 pack,", "1 rule)"},
 		},
 		{
 			name:  "no version at all",
 			packs: 1, rules: 34,
-			want: []string{"🐕 Leash is guarding this session"},
+			want: []string{"🚧 Fence is guarding this session"},
 		},
 		{
 			name:    "a failed ambient pack is called out",

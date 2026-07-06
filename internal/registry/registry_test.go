@@ -128,8 +128,8 @@ func TestFetchPackRejectsChecksumMismatch(t *testing.T) {
 
 func TestIndexSchemaTooNew(t *testing.T) {
 	index := writeLocalRegistry(t, "schema: 99\npacks: []\n")
-	if _, err := NewClient(index).Index(); err == nil || !strings.Contains(err.Error(), "upgrade leash") {
-		t.Fatalf("want an upgrade-leash error for a newer schema, got %v", err)
+	if _, err := NewClient(index).Index(); err == nil || !strings.Contains(err.Error(), "upgrade fence") {
+		t.Fatalf("want an upgrade-fence error for a newer schema, got %v", err)
 	}
 }
 

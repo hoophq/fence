@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Simulated Claude Code session: the agent proposes a force-push; Leash pauses
+# Simulated Claude Code session: the agent proposes a force-push; Fence pauses
 # and asks the human to confirm. Rendered by docs/assets/ask.tape.
 set -u
 cd "$(dirname "$0")" && . ./lib.sh
@@ -11,7 +11,7 @@ printf '%s●%s I'\''ll force-push the rebased branch.\n\n' "$dot" "$rst"
 sleep 1.0
 printf '%s●%s %sBash%s(%sgit push --force origin feature/rebase%s)\n' "$dot" "$rst" "$tool" "$rst" "$cmd" "$rst"
 sleep 1.3
-printf '  %s└─%s %s 🐕 Leash needs your OK %s %sgit-force-push%s\n' "$dim" "$rst" "$ask" "$rst" "$dim" "$rst"
+printf '  %s└─%s %s 🚧 Fence needs your OK %s %sgit-force-push%s\n' "$dim" "$rst" "$ask" "$rst" "$dim" "$rst"
 printf '     %sForce-push can overwrite history others depend on. Prefer%s\n' "$amber" "$rst"
 printf '     %s--force-with-lease, or confirm if you are sure.%s\n\n' "$amber" "$rst"
 printf '     %s[ Allow once ]%s    %s[ Deny ]%s\n\n' "$ok" "$rst" "$warn" "$rst"

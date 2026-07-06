@@ -108,7 +108,7 @@ func (r *Resolver) target(pack *Rulepack, key, ref string) (string, bool) {
 			return p, true
 		}
 	}
-	r.warnf("%s: extends %q, which is not installed (run: leash add %s)", describePack(pack, key), ref, ref)
+	r.warnf("%s: extends %q, which is not installed (run: fence add %s)", describePack(pack, key), ref, ref)
 	return "", false
 }
 

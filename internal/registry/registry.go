@@ -1,7 +1,7 @@
 // Package registry reads shareable rulepacks from a static index — a plain
 // index.yaml plus pack files, hosted anywhere. The default registry is the
-// registry/ directory of the Leash repo, read live off main. Fetching happens
-// only in explicit commands (leash add / search / update); the evaluation
+// registry/ directory of the Fence repo, read live off main. Fetching happens
+// only in explicit commands (fence add / search / update); the evaluation
 // path never imports this package, so no agent tool call can ever wait on the
 // network.
 package registry
@@ -24,8 +24,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// DefaultIndexURL is the built-in registry: the index file in the Leash repo.
-const DefaultIndexURL = "https://raw.githubusercontent.com/hoophq/leash/main/registry/index.yaml"
+// DefaultIndexURL is the built-in registry: the index file in the Fence repo.
+const DefaultIndexURL = "https://raw.githubusercontent.com/hoophq/fence/main/registry/index.yaml"
 
 // Schema is the index schema this build understands.
 const Schema = 1
@@ -78,7 +78,7 @@ func (c *Client) Index() (*Index, error) {
 		return nil, fmt.Errorf("parse registry index: %w", err)
 	}
 	if idx.Schema > Schema {
-		return nil, fmt.Errorf("registry index schema %d is newer than this leash understands — upgrade leash", idx.Schema)
+		return nil, fmt.Errorf("registry index schema %d is newer than this fence understands — upgrade fence", idx.Schema)
 	}
 	return &idx, nil
 }

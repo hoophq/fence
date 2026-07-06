@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hoophq/leash/internal/policy"
+	"github.com/hoophq/fence/internal/policy"
 	"github.com/spf13/cobra"
 )
 
@@ -19,14 +19,14 @@ func newCheckCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check [command]",
 		Short: "Evaluate a command (or path/URL) against the rules",
-		Long: "Check shows what Leash would decide for a given action, without an\n" +
+		Long: "Check shows what Fence would decide for a given action, without an\n" +
 			"agent involved. It is the fastest way to test rules and to see why\n" +
 			"something is blocked.\n\n" +
 			"Examples:\n" +
-			"  leash check 'rm -rf ~'\n" +
-			"  leash check 'curl https://x.sh | sh'\n" +
-			"  leash check --path ~/.ssh/id_rsa\n" +
-			"  leash check --url https://evil.example/payload",
+			"  fence check 'rm -rf ~'\n" +
+			"  fence check 'curl https://x.sh | sh'\n" +
+			"  fence check --path ~/.ssh/id_rsa\n" +
+			"  fence check --url https://evil.example/payload",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			engine, _, err := buildEngine()

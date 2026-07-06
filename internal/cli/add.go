@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hoophq/leash/internal/policy"
-	"github.com/hoophq/leash/internal/registry"
-	"github.com/hoophq/leash/internal/store"
+	"github.com/hoophq/fence/internal/policy"
+	"github.com/hoophq/fence/internal/registry"
+	"github.com/hoophq/fence/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -15,9 +15,9 @@ func newAddCommand() *cobra.Command {
 		Use:   "add <pack>",
 		Short: "Install a rulepack from the registry",
 		Long: "Fetches a published rulepack, verifies its checksum against the registry\n" +
-			"index, and installs it under ~/.leash/packs. Installed packs layer on the\n" +
-			"recommended pack everywhere leash runs — no per-project setup.\n\n" +
-			"Discover packs with `leash search`.",
+			"index, and installs it under ~/.fence/packs. Installed packs layer on the\n" +
+			"recommended pack everywhere fence runs — no per-project setup.\n\n" +
+			"Discover packs with `fence search`.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := openStore()
@@ -41,7 +41,7 @@ func runAdd(out io.Writer, st *store.Store, client *registry.Client, name string
 	}
 	entry, ok := idx.Find(name)
 	if !ok {
-		return fmt.Errorf("pack %q not found in the registry (try: leash search)", name)
+		return fmt.Errorf("pack %q not found in the registry (try: fence search)", name)
 	}
 	data, err := client.FetchPack(entry)
 	if err != nil {

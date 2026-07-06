@@ -1,23 +1,23 @@
 # Rules
 
-Leash decides what to do with a command by matching it against **rules**. This
+Fence decides what to do with a command by matching it against **rules**. This
 page covers how rulepacks layer, how to write your own, the full set of match
 conditions, and how to retune the built-in rules.
 
 ## How rulepacks layer
 
 - The embedded **`recommended`** pack is always active.
-- Packs installed with **[`leash add`](registry.md)** layer next — active in
+- Packs installed with **[`fence add`](registry.md)** layer next — active in
   every project, no setup.
-- Drop a **`./.leash.yaml`** in your project (auto-discovered) or pass
+- Drop a **`./.fence.yaml`** in your project (auto-discovered) or pass
   **`--rules <file>`** to layer your own rules on top.
 - When several rules match one command, the **most severe effect wins**:
   `deny` > `ask` > `warn` > `allow`. When nothing matches, the default is
   `allow`.
 
 ```bash
-leash check 'rm -rf ~'                 # against the recommended pack
-leash check --rules ./team.yaml 'rm -rf ~'   # plus your pack
+fence check 'rm -rf ~'                 # against the recommended pack
+fence check --rules ./team.yaml 'rm -rf ~'   # plus your pack
 ```
 
 ## Anatomy of a rule
@@ -92,7 +92,7 @@ installed pack by name, or a file by path (relative to the file declaring it):
 
 ```yaml
 extends:
-  - terraform-safety        # installed with `leash add`
+  - terraform-safety        # installed with `fence add`
   - ./team/base-rules.yaml  # a file next to this one
 overrides:
   terraform-destroy: ask    # this file wins over what it extends
@@ -100,7 +100,7 @@ overrides:
 
 The extending file layers **on top** of what it pulls in, a pack reached twice
 loads once, and a missing target degrades to a warning with the fix
-(`run: leash add <name>`) — it never takes the engine down.
+(`run: fence add <name>`) — it never takes the engine down.
 **→ [Composition semantics, in depth](registry.md)**
 
 ## Overriding a built-in rule's effect
@@ -121,18 +121,18 @@ breaks the agent.
 
 ## Schema version & compatibility
 
-The rulepack format is a public contract, frozen at Leash 1.0. A pack declares
+The rulepack format is a public contract, frozen at Fence 1.0. A pack declares
 the format generation it requires with `schema:`; a missing marker means `1`,
 so every pack published before the marker existed stays valid.
 
-**Frozen for all of Leash 1.x** — these keep their exact meaning:
+**Frozen for all of Fence 1.x** — these keep their exact meaning:
 
 - every field above (`schema`, `name`, `default`, `extends`, `overrides`,
   `rules` and the rule fields),
 - every match condition name and what it fires on,
 - effect resolution (`deny` > `ask` > `warn` > `allow`, most severe wins),
 - `extends:` semantics (extender wins, dedup, missing target degrades),
-- the layering order (`recommended` < installed < `./.leash.yaml` < `--rules`).
+- the layering order (`recommended` < installed < `./.fence.yaml` < `--rules`).
 
 **What may evolve:** minor releases may *add* match conditions and fields.
 When an addition is something a rule can depend on (a new match condition),
@@ -141,7 +141,7 @@ e.g. `schema: 2`.
 
 A pack that requires a newer schema than the binary understands is **refused
 whole**, never half-read: from an ambient source (an installed pack,
-`./.leash.yaml`) it is skipped with an "upgrade leash" warning while every
+`./.fence.yaml`) it is skipped with an "upgrade fence" warning while every
 other pack keeps protecting; named explicitly via `--rules` it is a hard
 error. Half-reading is the one thing the loader will never do — a match
 condition silently dropped from a rule would make the rule *broader*, the

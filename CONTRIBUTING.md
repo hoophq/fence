@@ -1,15 +1,15 @@
-# Contributing to Leash
+# Contributing to Fence
 
-Thanks for helping keep AI coding agents on a leash. Two kinds of
+Thanks for helping keep AI coding agents behind the fence. Two kinds of
 contributions matter most here, and neither requires writing Go:
 
-- **A false-positive report** — Leash blocked or questioned an everyday
+- **A false-positive report** — Fence blocked or questioned an everyday
   command. This is the single most valuable input the project gets: the
   near-zero-false-positive discipline *is* the product.
-  [File one](https://github.com/hoophq/leash/issues/new?template=false-positive.yml)
+  [File one](https://github.com/hoophq/fence/issues/new?template=false-positive.yml)
   with the exact command.
 - **A detector gap** — a catastrophe slipped through.
-  [File that too](https://github.com/hoophq/leash/issues/new?template=detector-gap.yml)
+  [File that too](https://github.com/hoophq/fence/issues/new?template=detector-gap.yml)
   (check the [threat model](docs/threat-model.md) first: some evasion paths
   are accepted limits, not gaps).
 
@@ -18,7 +18,7 @@ contributions matter most here, and neither requires writing Go:
 Go 1.26, no runtime services. The Makefile has everything:
 
 ```bash
-make build   # → ./dist/leash
+make build   # → ./dist/fence
 make test    # the gate — CI runs gofmt, go vet, go build, go test
 make vet
 make fmt
@@ -27,9 +27,9 @@ make fmt
 Try a rule without an agent:
 
 ```bash
-leash check 'rm -rf ~'                # prints a DENY/ASK/WARN/ALLOW card
+fence check 'rm -rf ~'                # prints a DENY/ASK/WARN/ALLOW card
 echo '{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}' \
-  | ./dist/leash hook claude-code    # exercise the hook directly
+  | ./dist/fence hook claude-code    # exercise the hook directly
 ```
 
 ## The two conventions every detector PR must follow
@@ -57,7 +57,7 @@ more than a missed catch.
 - **A new agent** = a new adapter under `internal/adapter/<agent>/` that
   maps the agent's tool calls ⇄ the neutral `Action`. The engine and every
   rulepack come along for free. See
-  [architecture](docs/architecture.md#extending-leash).
+  [architecture](docs/architecture.md#extending-fence).
 - **A rulepack** — no Go at all: packs are YAML, published by pull request.
   The walkthrough is in [docs/registry.md](docs/registry.md#authoring-a-pack).
   After editing a seed pack, recompute its `sha256` in `registry/index.yaml`
