@@ -5,6 +5,7 @@
 # stay silent.
 #
 # Install:  leash add k8s-safety
+schema: 1
 name: k8s-safety
 
 rules:

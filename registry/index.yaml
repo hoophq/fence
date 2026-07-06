@@ -9,24 +9,24 @@ schema: 1
 packs:
   - name: terraform-safety
     description: Block terraform destroy; confirm state mutations and unreviewed applies
-    version: "1.0.0"
-    sha256: b87e4b899a574be6a3818acd96ebcaac7a6a155eb3068d224cef7df0336f057a
+    version: "1.0.1"
+    sha256: 0d558df470375f311a07c849b2d71f7593df85665bb59ba3bd0fac572450ec62
     path: packs/terraform-safety.yaml
     tags: [terraform, tofu, infra, iac]
     maintainer: hoophq
 
   - name: prod-db-guard
     description: Confirm production database sessions and destructive SQL from CLI clients
-    version: "1.0.0"
-    sha256: 284d89b86e36417940b71ad6ab9ed8da62bde554d2af6ffa7ecd410dd09372f7
+    version: "1.0.1"
+    sha256: bcc1e107ba46591cc86e2865d89dbd650ba16e8ad8535138d635496b3af6e6f3
     path: packs/prod-db-guard.yaml
     tags: [database, postgres, mysql, mongodb, production]
     maintainer: hoophq
 
   - name: k8s-safety
     description: Confirm namespace deletes, --all sweeps, and node drains; warn on prod contexts
-    version: "1.0.0"
-    sha256: 27afb468f7fc160fcb20d337146ff991eef55953e381b70a0af3604d27388de6
+    version: "1.0.1"
+    sha256: 5eabed4bbb2614646d397e891265b4191f2b5fb1496293fa5553c6f2bfbc2e23
     path: packs/k8s-safety.yaml
     tags: [kubernetes, kubectl, infra]
     maintainer: hoophq

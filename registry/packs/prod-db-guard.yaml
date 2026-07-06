@@ -4,6 +4,7 @@
 # the common CLI clients. Everyday local development queries stay silent.
 #
 # Install:  leash add prod-db-guard
+schema: 1
 name: prod-db-guard
 
 rules:

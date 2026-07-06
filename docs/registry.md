@@ -93,6 +93,7 @@ A pack is a normal rulepack file — same schema as `.leash.yaml`
 ([full reference](rules.md)):
 
 ```yaml
+schema: 1                     # rulepack format generation (see rules.md)
 name: terraform-safety        # must match its registry name
 rules:
   - id: terraform-destroy    # prefix ids with your pack's theme: no collisions
@@ -163,6 +164,17 @@ An index is just `index.yaml` (`schema: 1`, a `packs:` list as above) with
 pack `path`s resolved relative to it. A git repo, an S3 bucket, or a directory
 all work. Air-gapped teams can vendor the whole registry and point at the
 checkout.
+
+## Compatibility
+
+The index format is a public contract, frozen at Leash 1.0: `schema: 1` and
+the entry fields above (`name`, `description`, `version`, `sha256`, `path`,
+`tags`, `maintainer`) keep their meaning for all of 1.x. An index declaring a
+newer `schema` than the binary understands fails loudly — `add`, `search`,
+and `update` refuse with an "upgrade leash" message rather than misreading
+it. Pack files carry their own `schema:` marker with the same promise;
+[rules.md](rules.md#schema-version--compatibility) spells out what is frozen
+and how a newer-schema pack degrades at load time.
 
 ---
 

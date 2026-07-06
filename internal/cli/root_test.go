@@ -141,6 +141,54 @@ func TestBuildEngineCorruptRulesFlagIsLoud(t *testing.T) {
 	}
 }
 
+// futurePack declares a rulepack schema newer than this build understands —
+// e.g. published for a leash with match vocabulary this binary lacks.
+const futurePack = `schema: 99
+name: future
+rules:
+  - id: future-marker
+    description: test
+    effect: deny
+    match:
+      regex: 'zzz-future-marker'
+`
+
+// A newer-schema pack degrades exactly like a corrupt one when it arrives
+// through an ambient source: warned, skipped, everything else keeps protecting.
+func TestBuildEngineNewerSchemaPackDegrades(t *testing.T) {
+	chdirEmpty(t)
+	st := store.Open(t.TempDir())
+	writeTestFile(t, st.PackPath("future"), futurePack)
+
+	var stderr bytes.Buffer
+	e, failed, err := buildEngineWithStore(st, "", &stderr)
+	if err != nil {
+		t.Fatalf("a newer-schema installed pack must not abort the engine: %v", err)
+	}
+	if failed != 1 {
+		t.Errorf("failed sources = %d, want 1 (the newer-schema pack)", failed)
+	}
+	if !strings.Contains(stderr.String(), "upgrade leash") {
+		t.Fatalf("want a warning telling the user to upgrade, got %q", stderr.String())
+	}
+	// The skipped pack's rules must not be half-applied.
+	if got := evalShell(t, e, "echo zzz-future-marker"); got != policy.EffectAllow {
+		t.Fatalf("rule from a skipped newer-schema pack fired: %q", got)
+	}
+	if got := evalShell(t, e, "rm -rf ~"); got != policy.EffectDeny {
+		t.Fatalf("rm -rf ~ = %q, want deny", got)
+	}
+}
+
+func TestBuildEngineNewerSchemaRulesFlagIsLoud(t *testing.T) {
+	chdirEmpty(t)
+	future := writeTestFile(t, filepath.Join(t.TempDir(), "future.yaml"), futurePack)
+	_, _, err := buildEngineWithStore(nil, future, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "upgrade leash") {
+		t.Fatalf("an explicit --rules file with a newer schema must fail loudly, got %v", err)
+	}
+}
+
 // Layering order: recommended < installed < .leash.yaml < --rules.
 func TestBuildEngineLayeringOrder(t *testing.T) {
 	dir := chdirEmpty(t)

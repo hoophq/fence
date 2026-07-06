@@ -5,6 +5,7 @@
 # anything a developer might legitimately mean, we ask for confirmation instead
 # of blocking. Everyday operations (rm -rf node_modules, rm -rf ./dist, rm -rf *)
 # are deliberately NOT matched.
+schema: 1
 name: recommended
 default: allow
 

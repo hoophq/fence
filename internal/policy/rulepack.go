@@ -13,10 +13,22 @@ import (
 //go:embed builtin/recommended.yaml
 var builtinFS embed.FS
 
+// RulepackSchema is the rulepack format generation this build understands.
+// It bumps whenever the schema grows vocabulary a rule can depend on (a new
+// match condition, say). A pack declaring a newer schema is refused at load
+// rather than half-read: the YAML decoder drops unknown fields silently, and
+// a match condition dropped from a rule makes the rule broader, not narrower
+// — an unacceptable failure direction for a tool that promises near-zero
+// false positives.
+const RulepackSchema = 1
+
 // Rulepack is a named, shareable collection of rules — the unit users publish
 // and compose. The shipped "recommended" pack is embedded in the binary.
 type Rulepack struct {
-	Name string `yaml:"name"`
+	// Schema is the rulepack format generation this pack requires. Zero
+	// (absent) means 1, keeping packs published before the marker valid.
+	Schema int    `yaml:"schema,omitempty"`
+	Name   string `yaml:"name"`
 	// Default is the effect applied when no rule matches. Last pack to set it wins.
 	Default Effect `yaml:"default,omitempty"`
 	// Extends pulls other packs in below this one: each entry is an installed
@@ -79,6 +91,13 @@ func Recommended() *Rulepack {
 }
 
 func (p *Rulepack) validate() error {
+	if p.Schema < 0 {
+		return fmt.Errorf("rulepack %q has invalid schema %d", p.Name, p.Schema)
+	}
+	if p.Schema > RulepackSchema {
+		return fmt.Errorf("rulepack %q requires schema %d, but this leash understands up to %d — upgrade leash",
+			p.Name, p.Schema, RulepackSchema)
+	}
 	if p.Default != "" && !p.Default.Valid() {
 		return fmt.Errorf("rulepack %q has invalid default effect %q", p.Name, p.Default)
 	}

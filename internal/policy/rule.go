@@ -91,8 +91,18 @@ func (r *Rule) compile() error {
 	if !r.Effect.Valid() {
 		return fmt.Errorf("rule %q has invalid effect %q", r.ID, r.Effect)
 	}
+	if err := validateSeverity(r.ID, r.Severity); err != nil {
+		return err
+	}
 	if r.Match.isEmpty() {
 		return fmt.Errorf("rule %q has an empty match (would never fire)", r.ID)
+	}
+	for _, k := range r.Match.Tool {
+		switch k {
+		case ActionShell, ActionFileWrite, ActionFileRead, ActionNetFetch:
+		default:
+			return fmt.Errorf("rule %q has invalid tool %q", r.ID, k)
+		}
 	}
 	if sh := r.Match.Shell; sh != nil {
 		if err := validateTargetSpec(r.ID, "delete_target", sh.DeleteTarget); err != nil {
@@ -140,5 +150,14 @@ func validateSecretSpec(ruleID, field, spec string) error {
 		return nil
 	default:
 		return fmt.Errorf("rule %q has invalid %s %q", ruleID, field, spec)
+	}
+}
+
+func validateSeverity(ruleID, severity string) error {
+	switch severity {
+	case "", "info", "low", "medium", "high", "critical":
+		return nil
+	default:
+		return fmt.Errorf("rule %q has invalid severity %q", ruleID, severity)
 	}
 }

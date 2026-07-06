@@ -23,6 +23,7 @@ leash check --rules ./team.yaml 'rm -rf ~'   # plus your pack
 ## Anatomy of a rule
 
 ```yaml
+schema: 1           # rulepack format generation (optional; absent means 1)
 name: my-rules      # optional label
 default: allow      # effect when nothing matches (default: allow)
 
@@ -117,6 +118,38 @@ overrides:
 
 An override aimed at an unknown id is reported on stderr and ignored — it never
 breaks the agent.
+
+## Schema version & compatibility
+
+The rulepack format is a public contract, frozen at Leash 1.0. A pack declares
+the format generation it requires with `schema:`; a missing marker means `1`,
+so every pack published before the marker existed stays valid.
+
+**Frozen for all of Leash 1.x** — these keep their exact meaning:
+
+- every field above (`schema`, `name`, `default`, `extends`, `overrides`,
+  `rules` and the rule fields),
+- every match condition name and what it fires on,
+- effect resolution (`deny` > `ask` > `warn` > `allow`, most severe wins),
+- `extends:` semantics (extender wins, dedup, missing target degrades),
+- the layering order (`recommended` < installed < `./.leash.yaml` < `--rules`).
+
+**What may evolve:** minor releases may *add* match conditions and fields.
+When an addition is something a rule can depend on (a new match condition),
+the schema generation bumps, and a pack using it declares the new number —
+e.g. `schema: 2`.
+
+A pack that requires a newer schema than the binary understands is **refused
+whole**, never half-read: from an ambient source (an installed pack,
+`./.leash.yaml`) it is skipped with an "upgrade leash" warning while every
+other pack keeps protecting; named explicitly via `--rules` it is a hard
+error. Half-reading is the one thing the loader will never do — a match
+condition silently dropped from a rule would make the rule *broader*, the
+wrong failure direction for a tool that promises near-zero false positives.
+
+In semver terms: a **patch** never changes the contract, a **minor** may add
+vocabulary (bumping the schema generation packs can opt into), and only a
+**major** may change or remove the meaning of anything listed above.
 
 ## More
 
