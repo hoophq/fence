@@ -6,6 +6,7 @@ import (
 
 	"github.com/hoophq/fence/internal/adapter/claudecode"
 	"github.com/hoophq/fence/internal/adapter/codex"
+	"github.com/hoophq/fence/internal/adapter/opencode"
 	"github.com/hoophq/fence/internal/policy"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +18,7 @@ func newHookCommand(version string) *cobra.Command {
 	}
 	cmd.AddCommand(newClaudeCodeHookCommand(version))
 	cmd.AddCommand(newCodexHookCommand(version))
+	cmd.AddCommand(newOpencodeHookCommand(version))
 	return cmd
 }
 
@@ -107,41 +109,62 @@ func newCodexHookCommand(version string) *cobra.Command {
 	return cmd
 }
 
-// runClaudeCodeHook always returns nil (exit 0). It communicates decisions
-// through the JSON protocol on out, never through the exit code, and it fails
-// open on any internal error.
-func runClaudeCodeHook(in io.Reader, out, errw io.Writer, quiet bool) error {
-	engine, _, err := buildEngine()
-	if err != nil {
-		fmt.Fprintf(errw, "fence: failed to load rules, allowing: %v\n", err)
-		return nil
-	}
+func newOpencodeHookCommand(version string) *cobra.Command {
+	var quiet bool
 
-	action, err := claudecode.ParseAction(in)
-	if err != nil {
-		fmt.Fprintf(errw, "fence: could not read tool call, allowing: %v\n", err)
-		return nil
+	cmd := &cobra.Command{
+		Use:   "opencode",
+		Short: "OpenCode shim-plugin entrypoint",
+		Long: "Reads a tool-call payload from the Fence OpenCode plugin on stdin and\n" +
+			"writes a decision on stdout. Wire it up with `fence init opencode`,\n" +
+			"which installs the plugin that pipes tool calls here.\n\n" +
+			"A bash call is screened as one shell command; an apply_patch call is\n" +
+			"screened per file it touches, and the most severe verdict wins. The\n" +
+			"plugin can only block by throwing, so deny and ask both stop the call;\n" +
+			"an ask notice routes the agent to the user for confirmation. Allowed\n" +
+			"calls get a notice too unless --quiet.\n\n" +
+			"This command fails open: if anything goes wrong, the tool call is\n" +
+			"allowed so the agent is never bricked by Fence.",
+		Args: cobra.NoArgs,
+		// Disable usage/error noise: a hook's stdout is a machine protocol.
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runOpencodeHook(cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), quiet)
+		},
 	}
-
-	decision := engine.Evaluate(action)
-
-	if err := claudecode.WriteDecision(out, decision, quiet); err != nil {
-		fmt.Fprintf(errw, "fence: could not write decision, allowing: %v\n", err)
-	}
-	return nil
+	cmd.Flags().BoolVar(&quiet, "quiet", false,
+		"don't show a notice for allowed tool calls (deny/ask/warn always show one)")
+	cmd.AddCommand(&cobra.Command{
+		Use:           "session-start",
+		Short:         "OpenCode session banner entrypoint (the plugin shows it as a toast)",
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runOpencodeSessionStartHook(cmd.OutOrStdout(), cmd.ErrOrStderr(), version)
+		},
+	})
+	return cmd
 }
 
-// runCodexHook always returns nil (exit 0), like runClaudeCodeHook. One Codex
-// payload can imply several actions (an apply_patch touching many files);
-// each is evaluated and the most severe decision wins.
-func runCodexHook(in io.Reader, out, errw io.Writer, quiet bool) error {
+// runAgentHook is the shared PreToolUse flow: parse with one adapter, decide,
+// answer with the same adapter. It always returns nil (exit 0), communicates
+// decisions through the JSON protocol on out — never through the exit code —
+// and fails open on any internal error. One payload can imply several actions
+// (a patch touching many files); each is evaluated and the most severe
+// decision wins.
+func runAgentHook(in io.Reader, out, errw io.Writer, quiet bool,
+	parse func(io.Reader) ([]policy.Action, error),
+	write func(io.Writer, policy.Decision, bool) error,
+) error {
 	engine, _, err := buildEngine()
 	if err != nil {
 		fmt.Fprintf(errw, "fence: failed to load rules, allowing: %v\n", err)
 		return nil
 	}
 
-	actions, err := codex.ParseActions(in)
+	actions, err := parse(in)
 	if err != nil {
 		fmt.Fprintf(errw, "fence: could not read tool call, allowing: %v\n", err)
 		return nil
@@ -154,10 +177,28 @@ func runCodexHook(in io.Reader, out, errw io.Writer, quiet bool) error {
 		}
 	}
 
-	if err := codex.WriteDecision(out, decision, quiet); err != nil {
+	if err := write(out, decision, quiet); err != nil {
 		fmt.Fprintf(errw, "fence: could not write decision, allowing: %v\n", err)
 	}
 	return nil
+}
+
+func runClaudeCodeHook(in io.Reader, out, errw io.Writer, quiet bool) error {
+	return runAgentHook(in, out, errw, quiet, func(r io.Reader) ([]policy.Action, error) {
+		a, err := claudecode.ParseAction(r)
+		if err != nil {
+			return nil, err
+		}
+		return []policy.Action{a}, nil
+	}, claudecode.WriteDecision)
+}
+
+func runCodexHook(in io.Reader, out, errw io.Writer, quiet bool) error {
+	return runAgentHook(in, out, errw, quiet, codex.ParseActions, codex.WriteDecision)
+}
+
+func runOpencodeHook(in io.Reader, out, errw io.Writer, quiet bool) error {
+	return runAgentHook(in, out, errw, quiet, opencode.ParseActions, opencode.WriteDecision)
 }
 
 // effectRank orders effects by severity for merging multi-action decisions,
@@ -175,37 +216,39 @@ func effectRank(e policy.Effect) int {
 	}
 }
 
-// runSessionStartHook always returns nil (exit 0): a banner must never block a
-// session from starting. It deliberately does not read stdin — blocking on an
-// agent that keeps the pipe open would do exactly that.
-func runSessionStartHook(out, errw io.Writer, version string) error {
+// runAgentSessionStartHook is the shared session-banner flow, parameterized
+// by one adapter's banner writers. It always returns nil (exit 0): a banner
+// must never block a session from starting. It deliberately does not read
+// stdin — blocking on an agent that keeps the pipe open would do exactly that.
+func runAgentSessionStartHook(out, errw io.Writer, version string,
+	writeBanner func(w io.Writer, version string, packs, rules, failed int) error,
+	writeDegraded func(io.Writer) error,
+) error {
 	engine, failed, err := buildEngine()
 	if err != nil {
 		fmt.Fprintf(errw, "fence: failed to load rules: %v\n", err)
-		if err := claudecode.WriteSessionStartDegraded(out); err != nil {
+		if err := writeDegraded(out); err != nil {
 			fmt.Fprintf(errw, "fence: could not write session banner: %v\n", err)
 		}
 		return nil
 	}
-	if err := claudecode.WriteSessionStart(out, version, engine.PackCount(), engine.RuleCount(), failed); err != nil {
+	if err := writeBanner(out, version, engine.PackCount(), engine.RuleCount(), failed); err != nil {
 		fmt.Fprintf(errw, "fence: could not write session banner: %v\n", err)
 	}
 	return nil
 }
 
-// runCodexSessionStartHook is runSessionStartHook speaking the Codex adapter's
-// envelope.
+func runSessionStartHook(out, errw io.Writer, version string) error {
+	return runAgentSessionStartHook(out, errw, version,
+		claudecode.WriteSessionStart, claudecode.WriteSessionStartDegraded)
+}
+
 func runCodexSessionStartHook(out, errw io.Writer, version string) error {
-	engine, failed, err := buildEngine()
-	if err != nil {
-		fmt.Fprintf(errw, "fence: failed to load rules: %v\n", err)
-		if err := codex.WriteSessionStartDegraded(out); err != nil {
-			fmt.Fprintf(errw, "fence: could not write session banner: %v\n", err)
-		}
-		return nil
-	}
-	if err := codex.WriteSessionStart(out, version, engine.PackCount(), engine.RuleCount(), failed); err != nil {
-		fmt.Fprintf(errw, "fence: could not write session banner: %v\n", err)
-	}
-	return nil
+	return runAgentSessionStartHook(out, errw, version,
+		codex.WriteSessionStart, codex.WriteSessionStartDegraded)
+}
+
+func runOpencodeSessionStartHook(out, errw io.Writer, version string) error {
+	return runAgentSessionStartHook(out, errw, version,
+		opencode.WriteSessionStart, opencode.WriteSessionStartDegraded)
 }

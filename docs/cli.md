@@ -14,16 +14,23 @@ shows a banner when a session begins — proof Fence is active, with the pack
 and rule counts.
 
 ```bash
-fence init                  # Claude Code, project — ./.claude/settings.json
-fence init --global         # Claude Code, global  — ~/.claude/settings.json
-fence init codex            # Codex, project — ./.codex/hooks.json
-fence init codex --global   # Codex, global  — ~/.codex/hooks.json
-fence init --quiet          # no 🚧 chat notice for *allowed* tool calls
+fence init                     # Claude Code, project — ./.claude/settings.json
+fence init --global            # Claude Code, global  — ~/.claude/settings.json
+fence init codex               # Codex, project — ./.codex/hooks.json
+fence init codex --global      # Codex, global  — ~/.codex/hooks.json
+fence init opencode            # OpenCode, project — ./.opencode/plugins/fence.js
+fence init opencode --global   # OpenCode, global  — ~/.config/opencode/plugins/fence.js
+fence init --quiet             # no 🚧 chat notice for *allowed* tool calls
 ```
 
 Codex adds one step: it only runs hooks you've explicitly trusted, so after
 `fence init codex`, run `/hooks` inside Codex to review and trust the Fence
 entries (init reminds you).
+
+OpenCode has no hooks file — its extension point is a JS plugin — so `init`
+generates a small `fence.js` plugin that pipes each tool call to
+`fence hook opencode` and enforces the decision. Re-running `init` regenerates
+it in place; a `fence.js` you wrote yourself is refused, never overwritten.
 
 Deny, ask, and warn decisions always show a `🚧` notice in the chat naming the
 rule that fired; allowed calls get one too, so you can see Fence watching
@@ -50,11 +57,16 @@ to hold the Fence hooks are cleaned up rather than left empty. Running it
 when nothing is installed is a friendly no-op.
 
 ```bash
-fence uninstall                 # Claude Code, project settings
-fence uninstall --global        # Claude Code, ~/.claude/settings.json
-fence uninstall codex           # Codex, ./.codex/hooks.json
-fence uninstall codex --global  # Codex, ~/.codex/hooks.json
+fence uninstall                    # Claude Code, project settings
+fence uninstall --global           # Claude Code, ~/.claude/settings.json
+fence uninstall codex              # Codex, ./.codex/hooks.json
+fence uninstall codex --global     # Codex, ~/.codex/hooks.json
+fence uninstall opencode           # OpenCode, ./.opencode/plugins/fence.js
+fence uninstall opencode --global  # OpenCode, ~/.config/opencode/plugins/fence.js
 ```
+
+For OpenCode the generated plugin file is deleted — but only if Fence
+generated it; a hand-written `fence.js` is refused.
 
 It recognizes the hooks the same way `init` heals them, so a stale binary
 path or a hand-added flag doesn't stop the removal. Rulepacks installed with
@@ -146,8 +158,8 @@ $ fence check 'rm -rf node_modules'
 
 The entrypoint an agent's hook system calls — it reads a tool call as JSON on
 stdin and writes the decision back in that agent's protocol. You don't run this
-yourself; `fence init` wires it in. The adapters today are `claude-code` and
-`codex`:
+yourself; `fence init` wires it in. The adapters today are `claude-code`,
+`codex`, and `opencode`:
 
 ```bash
 echo '{"cwd":".","tool_name":"Bash","tool_input":{"command":"rm -rf ~"}}' \
@@ -159,6 +171,13 @@ Code-compatible hook protocol) with Codex's own tool vocabulary: shell
 commands arrive as tool `Bash`, and file edits as tool `apply_patch` carrying
 the whole patch — which Fence screens **per file touched**, applying the most
 severe verdict. The same rulepack produces the same decisions on both agents.
+
+`fence hook opencode` is called by the plugin `fence init opencode` installs,
+with OpenCode's own tool vocabulary (`bash`, `edit`, `write`, `read`,
+`webfetch`, and `apply_patch`, screened per file like Codex). One honest
+limitation: OpenCode's plugin surface can only *block* a call, not prompt for
+approval, so an `ask` rule stops the call with a message routing the agent to
+you for confirmation instead of showing a native prompt.
 
 Deny/ask/warn responses carry a `systemMessage` so the decision is visible in
 the chat. Allowed calls get a notice too (unless `--quiet`) — but never an

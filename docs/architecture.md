@@ -16,8 +16,9 @@ about a normalized action; each adapter teaches one agent how to speak to it.
 1. An **adapter** translates one agent's tool call into a neutral `Action`
    (`shell`, `file_write`, `file_read`, `net_fetch`). Claude Code's `PreToolUse`
    payload was the first adapter; Codex is the second (its `apply_patch` edits
-   expand to one `file_write` per touched file). Neither required touching the
-   engine or any rulepack.
+   expand to one `file_write` per touched file); OpenCode is the third — it has
+   no hook protocol, so a generated plugin pipes tool calls to `fence hook
+   opencode` instead. None required touching the engine or any rulepack.
 2. The **engine** analyzes the action. Shell commands go through a real parser
    ([`mvdan.cc/sh`](https://github.com/mvdan/sh)) that extracts **semantic
    facts** — recursive delete + where it points, disk writes, force-push,

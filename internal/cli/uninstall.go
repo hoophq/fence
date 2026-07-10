@@ -16,8 +16,9 @@ func newUninstallCommand() *cobra.Command {
 		Short: "Remove the Fence hooks from an agent's settings",
 		Long: "The exit door: removes the hooks `fence init` installed from an agent's\n" +
 			"settings, leaving everything else in the file untouched. The agent is\n" +
-			"claude-code (default) or codex. By default it edits the project settings\n" +
-			"(./.claude or ./.codex); use --global for the user-level file under ~.\n\n" +
+			"claude-code (default), codex, or opencode (whose generated plugin file\n" +
+			"is deleted instead). By default it edits the project settings (./.claude,\n" +
+			"./.codex or ./.opencode); use --global for the user-level file under ~.\n\n" +
 			"Rulepacks installed with `fence add` are not touched — remove those with\n" +
 			"`fence remove <pack>`.",
 		Args: cobra.MaximumNArgs(1),
@@ -26,26 +27,36 @@ func newUninstallCommand() *cobra.Command {
 			if err != nil {
 				return fail(cmd, err)
 			}
-			path, err := settingsPath(agent, global)
+			var path string
+			var result hookRemoveResult
+			if agent.plugin {
+				if path, err = opencodePluginPath(global); err == nil {
+					result, err = removeOpencodePlugin(path)
+				}
+			} else {
+				if path, err = settingsPath(agent, global); err == nil {
+					result, err = removeHooks(path, agent.invocation)
+				}
+			}
 			if err != nil {
 				return fail(cmd, err)
 			}
-			result, err := removeHooks(path, agent.invocation)
-			if err != nil {
-				return fail(cmd, err)
+			what := "hooks"
+			if agent.plugin {
+				what = "plugin"
 			}
 			switch result {
 			case hookRemoved:
-				fmt.Fprintf(cmd.OutOrStdout(), "Removed the Fence hooks from %s\n", path)
+				fmt.Fprintf(cmd.OutOrStdout(), "Removed the Fence %s from %s\n", what, path)
 				fmt.Fprintf(cmd.OutOrStdout(), "Restart %s (or start a new session) for the change to take effect.\n", agent.display)
 			default:
-				fmt.Fprintf(cmd.OutOrStdout(), "No Fence hooks found in %s\n", path)
+				fmt.Fprintf(cmd.OutOrStdout(), "No Fence %s found in %s\n", what, path)
 			}
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&global, "global", false, "remove from ~/.claude/settings.json instead of the project")
+	cmd.Flags().BoolVar(&global, "global", false, "remove from the user-level settings under ~ instead of the project")
 	return cmd
 }
 
