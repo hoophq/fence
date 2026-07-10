@@ -58,10 +58,11 @@ as the semantic, cross-agent rule layer on top, not the wall.
 Out of scope on purpose; pretending otherwise would be dishonest.
 
 **Anything outside the hooked surface.** Fence sees exactly the tool calls
-the agent's hook system reports — for Claude Code: shell commands, file
-writes/edits, file reads, and web fetches. Tool calls outside that surface
-(an MCP server's tools, say) and processes the agent didn't launch through a
-hooked tool are invisible to it.
+the agent's hook system reports — shell commands, file writes/edits, file
+reads, and web fetches; the exact tool vocabulary varies per agent (see the
+[`fence hook` reference](cli.md#fence-hook-agent)). Tool calls outside that
+surface (an MCP server's tools, say) and processes the agent didn't launch
+through a hooked tool are invisible to it.
 
 ## Known evasion paths
 

@@ -45,8 +45,8 @@ Fence is built the other way:
   left standing.
 - 🪶 **Fails open.** If Fence can't parse something, the command runs. A
   guardrail must never brick the agent it protects.
-- 🧩 **Agent-neutral.** One portable rulepack. Claude Code today; Codex, Cursor,
-  and Gemini next.
+- 🧩 **Agent-neutral.** One portable rulepack. Claude Code, Codex, and OpenCode
+  today; Cursor and Gemini next.
 
 ---
 
@@ -126,6 +126,17 @@ fence init codex   # writes ./.codex/hooks.json (--global for ~/.codex)
 Then run `/hooks` inside Codex once to trust the Fence entries (Codex only
 runs hooks you've approved). Shell commands and `apply_patch` file edits are
 screened by the same engine — one rulepack, every agent.
+
+## Quickstart — OpenCode
+
+```bash
+fence init opencode   # writes ./.opencode/plugins/fence.js (--global for ~/.config/opencode)
+```
+
+OpenCode has no hook protocol, so `init` generates a tiny plugin that pipes
+every shell command and file edit to the same engine. One honest caveat:
+OpenCode plugins can block a call but can't show an approval prompt, so `ask`
+rules stop the call and route the agent to you for confirmation instead.
 
 **→ [All CLI commands](docs/cli.md)** — `init`/`uninstall`, `check` (test a
 verdict without an agent), `add`/`search` (rulepacks), `hook`, and `version`.
@@ -240,6 +251,7 @@ developer can't override it.
 - [x] A shareable rulepack registry — `fence search` · `fence add <pack>` ·
       [publish your own](docs/registry.md)
 - [x] A second agent — Codex (same rulepacks, zero engine changes)
+- [x] A third — OpenCode (via its plugin surface, engine still untouched)
 - [ ] More agents — Cursor, Gemini CLI
 
 ## License

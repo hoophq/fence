@@ -122,7 +122,7 @@ func TestUninstallCodex(t *testing.T) {
 
 func TestResolveAgentUnknown(t *testing.T) {
 	if _, err := resolveAgent([]string{"cursor"}); err == nil ||
-		!strings.Contains(err.Error(), "claude-code, codex") {
+		!strings.Contains(err.Error(), "claude-code, codex, opencode") {
 		t.Fatalf("resolveAgent(cursor) = %v, want an error naming the supported agents", err)
 	}
 }

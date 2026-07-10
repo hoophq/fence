@@ -33,11 +33,15 @@ central audit, and approval workflows out of scope.
   `claudecode` (Claude Code PreToolUse + the SessionStart banner) came first;
   `codex` speaks Codex's Claude-compatible hook envelope with its own tool
   vocabulary (`Bash`, `apply_patch` — expanded to one file_write per touched
-  file, most severe verdict wins). Adapters stay self-contained even where the
-  wire formats coincide — the two protocols are owned by different vendors and
-  may drift. Decisions and chat notices ride the same JSON envelope; an explicit
-  "allow" decision is never emitted (it would bypass the user's own permission
-  settings).
+  file, most severe verdict wins); `opencode` has no hook protocol at all — a
+  generated JS shim plugin (`fence init opencode` writes it, template embedded
+  in `internal/cli/opencode_plugin.js`) pipes tool calls to `fence hook
+  opencode`, and its only block primitive is throwing, so `ask` degrades to a
+  soft block that routes the agent to the user. Adapters stay self-contained
+  even where the wire formats coincide — the protocols are owned by different
+  vendors and may drift. Decisions and chat notices ride the same JSON
+  envelope; an explicit "allow" decision is never emitted (it would bypass the
+  user's own permission settings).
 - `internal/store/` — the user-level state dir (`~/.fence`): packs installed via
   `fence add` (the packs dir is the source of truth) + `packs.lock.json` metadata.
 - `internal/registry/` — fetch + sha256-verify packs from a static index
