@@ -43,4 +43,15 @@ jobs:
         run: go build ./...
 
       - name: Test
-        run: go test ./...
+        # Explicit bash => pipefail, so tee can't mask a test failure.
+        shell: bash
+        run: go test -v ./... 2>&1 | tee /tmp/test-output.log
+
+      - name: PII scan of test output
+        # Failing runs are the likeliest to leak PII, so scan even then.
+        if: always()
+        uses: hoophq/alcatraz-action@v1
+        with:
+          mode: files
+          paths: /tmp/test-output.log
+          comment: false # step summary only; keeps this workflow contents:read
