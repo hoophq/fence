@@ -48,6 +48,8 @@ jobs:
         run: go test -v ./... 2>&1 | tee /tmp/test-output.log
 
       - name: PII scan of test output
+        # Failing runs are the likeliest to leak PII, so scan even then.
+        if: always()
         uses: hoophq/alcatraz-action@v1
         with:
           mode: files
