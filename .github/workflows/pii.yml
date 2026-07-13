@@ -1,0 +1,49 @@
+name: PII scan
+
+on:
+  pull_request:
+  issue_comment: # comments on issues AND pull requests
+    types: [created, edited]
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  # Scan the lines each PR adds; findings block the check until removed
+  # or allowlisted.
+  diff:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # sticky report comment
+    # Cancel superseded runs on the same PR.
+    concurrency:
+      group: pii-diff-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan PR diff
+        uses: hoophq/alcatraz-action@v1
+
+  # Scan new/edited issue and comment bodies. Report only — a red X on a
+  # conversation event blocks nothing, so failing would just add noise.
+  comment:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write # replies on PR comments too
+    steps:
+      - name: Scan comment body
+        uses: hoophq/alcatraz-action@v1
+        with:
+          mode: comment
+          fail-on-findings: false
