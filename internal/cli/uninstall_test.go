@@ -131,6 +131,26 @@ func TestRemoveHooksRoundTrip(t *testing.T) {
 	}
 }
 
+// A hooks key holding something Fence doesn't understand must survive a
+// statusLine removal. Pins the statement order in removeHooks: the hooks-key
+// prune runs before the statusLine removal flips `removed`, so an unrelated
+// value there is never mistaken for an emptied container.
+func TestRemoveHooksKeepsNonMapHooksKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	writeTestFile(t, path, `{"hooks":"keep","statusLine":{"type":"command","command":"`+wantCommand+` statusline"}}`)
+
+	if got, err := removeHooks(path, claudeInvocation); err != nil || got != hookRemoved {
+		t.Fatalf("removeHooks = %v, %v; want hookRemoved, nil", got, err)
+	}
+	settings := readSettings(t, path)
+	if settings["hooks"] != "keep" {
+		t.Errorf("hooks = %v, want the unrelated value kept", settings["hooks"])
+	}
+	if _, ok := settings["statusLine"]; ok {
+		t.Errorf("statusLine key left behind: %v", settings["statusLine"])
+	}
+}
+
 // A no-op uninstall must not rewrite (and reformat) the file.
 func TestRemoveHooksNoOpDoesNotRewrite(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
