@@ -90,7 +90,11 @@ func statusLineTaken(path string, settings map[string]any, global bool, invocati
 		}
 		otherSettings, err := loadSettings(other)
 		if err != nil {
-			continue // an unreadable scope shouldn't block the install
+			// An unreadable scope shouldn't block the install, but say so:
+			// a status line hiding in a file we couldn't read would get
+			// shadowed without warning.
+			fmt.Fprintf(os.Stderr, "fence: checking %s for a status line: %v (assuming none)\n", other, err)
+			continue
 		}
 		if foreignStatusLine(otherSettings, invocation) {
 			return other, true
