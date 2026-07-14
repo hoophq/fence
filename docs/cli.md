@@ -9,9 +9,13 @@ flag ([rulepack reference](rules.md)).
 ## `fence init`
 
 Wire Fence into an agent: it adds a `PreToolUse` hook to the agent's settings
-so every tool call is inspected before it runs, and a `SessionStart` hook that
-shows a banner when a session begins — proof Fence is active, with the pack
-and rule counts.
+so every tool call is inspected before it runs, plus visible proof Fence is
+active, with the pack and rule counts. For Claude Code that proof is a
+persistent **status line** (`🚧 Fence v1.2.0 · 1 pack · 19 rules`); if you
+already have a status line configured — in this file or a scope that
+interacts with it — Fence leaves it alone and installs a `SessionStart` chat
+banner instead (init tells you, and how to add Fence to your own status line).
+Codex gets the `SessionStart` banner.
 
 ```bash
 fence init                     # Claude Code, project — ./.claude/settings.json
@@ -50,11 +54,12 @@ exactly as on Linux) or follow
 
 ## `fence uninstall`
 
-The exit door: removes the hooks `fence init` installed — and nothing else.
-Unrelated hooks, customized matchers on other entries, and every other
-setting in the file stay exactly as they were; containers that existed only
-to hold the Fence hooks are cleaned up rather than left empty. Running it
-when nothing is installed is a friendly no-op.
+The exit door: removes everything `fence init` installed — the hooks and
+Fence's status line — and nothing else. Unrelated hooks, a status line that
+isn't Fence's, customized matchers on other entries, and every other setting
+in the file stay exactly as they were; containers that existed only to hold
+the Fence hooks are cleaned up rather than left empty. Running it when
+nothing is installed is a friendly no-op.
 
 ```bash
 fence uninstall                    # Claude Code, project settings
@@ -183,15 +188,25 @@ Deny/ask/warn responses carry a `systemMessage` so the decision is visible in
 the chat. Allowed calls get a notice too (unless `--quiet`) — but never an
 explicit allow decision, so your own permission settings still apply.
 
+`fence hook claude-code statusline` is the `statusLine` entrypoint `fence
+init` wires in: it prints one plain-text line — `🚧 Fence v1.2.0 · 1 pack ·
+19 rules` — that Claude Code renders at the bottom of the UI for the whole
+session. To keep your own status line and still see Fence in it, have your
+statusline command append this one's output.
+
 `fence hook claude-code session-start` is the `SessionStart` entrypoint: it
-prints the "guarding this session" banner (wired in by `fence init` as well).
-If an installed pack or `.fence.yaml` fails to load, the banner says so —
-`⚠️ 1 rulepack failed to load` — instead of silently showing a lower count;
-run any fence command in a terminal to see the load warnings.
+prints the "guarding this session" chat banner. It's what init installs when
+another status line already occupies the slot, and settings from banner-era
+installs keep working — re-running `fence init` migrates them.
+
+If an installed pack or `.fence.yaml` fails to load, the status line and the
+banner say so — `⚠️ 1 rulepack failed to load` — instead of silently showing
+a lower count; run any fence command in a terminal to see the load warnings.
 
 Every variant always exits 0 and **fails open**: if the input can't be
 understood or the rules can't load, the tool call proceeds as if Fence weren't
-there — and the session banner says so instead of pretending you're covered.
+there — and the status line (or banner) says so instead of pretending you're
+covered.
 
 ### The `claude-code` envelope (frozen at 1.0)
 

@@ -52,6 +52,7 @@ func newClaudeCodeHookCommand(version string) *cobra.Command {
 	cmd.Flags().Bool("verbose", true, "")
 	_ = cmd.Flags().MarkHidden("verbose")
 	cmd.AddCommand(newSessionStartHookCommand(version))
+	cmd.AddCommand(newStatusLineHookCommand(version))
 	return cmd
 }
 
@@ -61,12 +62,32 @@ func newSessionStartHookCommand(version string) *cobra.Command {
 		Short: "Claude Code SessionStart hook entrypoint (prints the session banner)",
 		Long: "Writes a SessionStart response whose systemMessage tells the user this\n" +
 			"session is guarded by Fence, with the active pack and rule counts.\n" +
-			"`fence init` wires it in alongside the PreToolUse hook.",
+			"The status line has replaced it as what `fence init` wires in, but the\n" +
+			"entrypoint stays: settings written by older installs — and by init when\n" +
+			"another status line already occupies the slot — still invoke it.",
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runSessionStartHook(cmd.OutOrStdout(), cmd.ErrOrStderr(), version)
+		},
+	}
+}
+
+func newStatusLineHookCommand(version string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "statusline",
+		Short: "Claude Code statusLine entrypoint (prints the Fence status line)",
+		Long: "Writes one plain-text line for Claude Code's statusLine setting:\n" +
+			"persistent proof this session is guarded by Fence, with the active pack\n" +
+			"and rule counts. `fence init` wires it in when no other status line is\n" +
+			"configured; to combine it with your own, have your statusline command\n" +
+			"append the output of `fence hook claude-code statusline`.",
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runStatusLineHook(cmd.OutOrStdout(), cmd.ErrOrStderr(), version)
 		},
 	}
 }
@@ -216,10 +237,11 @@ func effectRank(e policy.Effect) int {
 	}
 }
 
-// runAgentSessionStartHook is the shared session-banner flow, parameterized
-// by one adapter's banner writers. It always returns nil (exit 0): a banner
-// must never block a session from starting. It deliberately does not read
-// stdin — blocking on an agent that keeps the pipe open would do exactly that.
+// runAgentSessionStartHook is the shared session-status flow — the session
+// banners and the Claude Code status line, parameterized by one adapter's
+// writers. It always returns nil (exit 0): session status must never block a
+// session from starting. It deliberately does not read stdin — blocking on an
+// agent that keeps the pipe open would do exactly that.
 func runAgentSessionStartHook(out, errw io.Writer, version string,
 	writeBanner func(w io.Writer, version string, packs, rules, failed int) error,
 	writeDegraded func(io.Writer) error,
@@ -228,12 +250,12 @@ func runAgentSessionStartHook(out, errw io.Writer, version string,
 	if err != nil {
 		fmt.Fprintf(errw, "fence: failed to load rules: %v\n", err)
 		if err := writeDegraded(out); err != nil {
-			fmt.Fprintf(errw, "fence: could not write session banner: %v\n", err)
+			fmt.Fprintf(errw, "fence: could not write session status: %v\n", err)
 		}
 		return nil
 	}
 	if err := writeBanner(out, version, engine.PackCount(), engine.RuleCount(), failed); err != nil {
-		fmt.Fprintf(errw, "fence: could not write session banner: %v\n", err)
+		fmt.Fprintf(errw, "fence: could not write session status: %v\n", err)
 	}
 	return nil
 }
@@ -241,6 +263,11 @@ func runAgentSessionStartHook(out, errw io.Writer, version string,
 func runSessionStartHook(out, errw io.Writer, version string) error {
 	return runAgentSessionStartHook(out, errw, version,
 		claudecode.WriteSessionStart, claudecode.WriteSessionStartDegraded)
+}
+
+func runStatusLineHook(out, errw io.Writer, version string) error {
+	return runAgentSessionStartHook(out, errw, version,
+		claudecode.WriteStatusLine, claudecode.WriteStatusLineDegraded)
 }
 
 func runCodexSessionStartHook(out, errw io.Writer, version string) error {

@@ -30,7 +30,8 @@ central audit, and approval workflows out of scope.
   semantic facts (recursive-delete + target class, force-push, history-rewrite,
   net→shell pipe). **This is the differentiator** — see Conventions.
 - `internal/adapter/<agent>/` — translate one agent's tool call ⇄ neutral `Action`.
-  `claudecode` (Claude Code PreToolUse + the SessionStart banner) came first;
+  `claudecode` (Claude Code PreToolUse + the statusLine session proof, with the
+  SessionStart banner as fallback when another status line owns the slot) came first;
   `codex` speaks Codex's Claude-compatible hook envelope with its own tool
   vocabulary (`Bash`, `apply_patch` — expanded to one file_write per touched
   file, most severe verdict wins); `opencode` has no hook protocol at all — a

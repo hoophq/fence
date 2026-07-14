@@ -129,3 +129,41 @@ func TestHookSessionStartReportsFailedPack(t *testing.T) {
 		t.Errorf("banner should still count the recommended pack:\n%s", out)
 	}
 }
+
+func TestHookStatusLine(t *testing.T) {
+	isolateHome(t)
+	out := runFence(t, "", "hook", "claude-code", "statusline")
+	for _, want := range []string{"🚧 Fence v1.2.3", "1 pack"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("status line missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "failed to load") {
+		t.Errorf("clean status line mentions failures:\n%s", out)
+	}
+	// The statusLine protocol renders stdout as-is: plain text, no JSON.
+	if strings.Contains(out, "{") {
+		t.Fatalf("status line must be plain text, not a JSON envelope:\n%s", out)
+	}
+}
+
+func TestHookStatusLineReportsFailedPack(t *testing.T) {
+	home := isolateHome(t)
+	packs := filepath.Join(home, ".fence", "packs")
+	if err := os.MkdirAll(packs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(packs, "broken.yaml"),
+		[]byte("rules:\n  - id: x\n    effect: nope\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := runFence(t, "", "hook", "claude-code", "statusline")
+	if !strings.Contains(out, "1 rulepack failed to load") {
+		t.Errorf("status line does not report the broken pack:\n%s", out)
+	}
+	// The recommended pack still protects underneath.
+	if !strings.Contains(out, "1 pack ·") {
+		t.Errorf("status line should still count the recommended pack:\n%s", out)
+	}
+}

@@ -359,6 +359,8 @@ func TestContainsHook(t *testing.T) {
 		{"/Users/dev/go/bin/fence hook claude-code", true},
 		{"fence hook claude-code session-start", true},
 		{"/opt/homebrew/bin/fence hook claude-code session-start", true},
+		{"fence hook claude-code statusline", true},
+		{"/opt/homebrew/bin/fence hook claude-code statusline", true},
 		{"/opt/homebrew/bin/fence hook claude-code --quiet", true},
 		{"/opt/homebrew/bin/fence hook claude-code --verbose", true}, // legacy installs
 		{"fence hook claude-codex", false},

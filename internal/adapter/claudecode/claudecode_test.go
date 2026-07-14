@@ -289,3 +289,83 @@ func TestWriteSessionStartDegraded(t *testing.T) {
 		t.Fatalf("degraded banner must not include hookSpecificOutput: %s", buf.String())
 	}
 }
+
+func TestWriteStatusLine(t *testing.T) {
+	cases := []struct {
+		name    string
+		version string
+		packs   int
+		rules   int
+		failed  int
+		want    []string
+	}{
+		{
+			name:    "release version gets a v prefix",
+			version: "0.0.4", packs: 3, rules: 42,
+			want: []string{"🚧 Fence v0.0.4", "3 packs", "42 rules"},
+		},
+		{
+			name:    "git-describe version is kept as-is",
+			version: "v0.0.4-2-gabc1234", packs: 2, rules: 40,
+			want: []string{"Fence v0.0.4-2-gabc1234"},
+		},
+		{
+			name:    "dev build and singular counts",
+			version: "dev", packs: 1, rules: 1,
+			want: []string{"Fence dev", "1 pack ·", "1 rule"},
+		},
+		{
+			name:  "no version at all",
+			packs: 1, rules: 34,
+			want: []string{"🚧 Fence · 1 pack · 34 rules"},
+		},
+		{
+			name:    "a failed ambient pack is called out",
+			version: "0.0.4", packs: 1, rules: 19, failed: 1,
+			want: []string{"⚠️ 1 rulepack failed to load"},
+		},
+		{
+			name:    "several failed packs pluralize",
+			version: "0.0.4", packs: 1, rules: 19, failed: 2,
+			want: []string{"2 rulepacks failed to load"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := WriteStatusLine(&buf, tc.version, tc.packs, tc.rules, tc.failed); err != nil {
+				t.Fatalf("WriteStatusLine: %v", err)
+			}
+			out := buf.String()
+			for _, part := range tc.want {
+				if !strings.Contains(out, part) {
+					t.Errorf("status line = %q, want it to contain %q", out, part)
+				}
+			}
+			// The statusLine protocol is rendered stdout: one plain-text line,
+			// not the hook JSON envelope.
+			if strings.Contains(out, "{") || strings.Count(out, "\n") != 1 || !strings.HasSuffix(out, "\n") {
+				t.Errorf("status line must be one plain-text line, got %q", out)
+			}
+			// A clean load must not hedge the line.
+			if tc.failed == 0 && strings.Contains(out, "failed to load") {
+				t.Errorf("clean status line mentions failures: %q", out)
+			}
+		})
+	}
+}
+
+func TestWriteStatusLineDegraded(t *testing.T) {
+	var buf bytes.Buffer
+	if err := WriteStatusLineDegraded(&buf); err != nil {
+		t.Fatalf("WriteStatusLineDegraded: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "NOT screened") {
+		t.Errorf("degraded status line must say the session is unscreened, got %q", out)
+	}
+	if strings.Contains(out, "{") {
+		t.Errorf("degraded status line must be plain text, got %q", out)
+	}
+}

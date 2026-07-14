@@ -170,7 +170,8 @@ func TestUninstallCommand(t *testing.T) {
 	path := filepath.Join(wd, ".claude", "settings.json")
 	writeTestFile(t, path, `{"model":"opus","hooks":{
 		"PreToolUse":[{"matcher":"Bash|Write","hooks":[{"type":"command","command":"`+wantCommand+`"}]}],
-		"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"`+wantSessionCommand+`"}]}]}}`)
+		"SessionStart":[{"matcher":"startup|resume|clear","hooks":[{"type":"command","command":"`+wantSessionCommand+`"}]}]},
+		"statusLine":{"type":"command","command":"`+wantCommand+` statusline"}}`)
 
 	out := runFence(t, "", "uninstall")
 	if !strings.Contains(out, "Removed the Fence hooks") {
@@ -180,6 +181,9 @@ func TestUninstallCommand(t *testing.T) {
 	settings := readSettings(t, path)
 	if _, ok := settings["hooks"]; ok {
 		t.Fatalf("hooks left in settings after uninstall: %v", settings["hooks"])
+	}
+	if _, ok := settings["statusLine"]; ok {
+		t.Fatalf("statusLine left in settings after uninstall: %v", settings["statusLine"])
 	}
 	if settings["model"] != "opus" {
 		t.Fatalf("model = %v, want opus preserved", settings["model"])

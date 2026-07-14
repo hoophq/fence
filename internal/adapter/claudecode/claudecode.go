@@ -149,16 +149,13 @@ func WriteDecision(w io.Writer, d policy.Decision, quiet bool) error {
 // session runs with less than the configured protection. It carries no
 // permission decision and adds nothing to the model's context (plain stdout on
 // SessionStart would).
+//
+// The status line replaced this banner as what `fence init` wires in, but the
+// entrypoint stays: settings written by older installs — and by init when
+// another status line already owns the slot — still invoke it.
 func WriteSessionStart(w io.Writer, version string, packs, rules, failed int) error {
-	name := "Fence"
-	if version != "" {
-		if version[0] >= '0' && version[0] <= '9' {
-			version = "v" + version
-		}
-		name += " " + version
-	}
 	msg := fmt.Sprintf("🚧 %s is guarding this session (%s, %s)",
-		name, plural(packs, "pack"), plural(rules, "rule"))
+		displayName(version), plural(packs, "pack"), plural(rules, "rule"))
 	if failed > 0 {
 		msg += fmt.Sprintf(" — ⚠️ %s failed to load", plural(failed, "rulepack"))
 	}
@@ -172,6 +169,42 @@ func WriteSessionStartDegraded(w io.Writer) error {
 	return emit(w, hookOutput{
 		SystemMessage: "🚧 Fence could not load its rules — tool calls in this session are NOT being screened (see stderr in the transcript)",
 	})
+}
+
+// WriteStatusLine emits the Fence status line: persistent proof the session
+// is guarded, with the active pack and rule counts — and, when ambient
+// rulepacks failed to load, that protection is thinner than configured.
+// Claude Code renders a statusLine command's stdout directly, so this is
+// plain text, not the hook JSON envelope.
+func WriteStatusLine(w io.Writer, version string, packs, rules, failed int) error {
+	msg := fmt.Sprintf("🚧 %s · %s · %s",
+		displayName(version), plural(packs, "pack"), plural(rules, "rule"))
+	if failed > 0 {
+		msg += fmt.Sprintf(" — ⚠️ %s failed to load", plural(failed, "rulepack"))
+	}
+	_, err := fmt.Fprintln(w, msg)
+	return err
+}
+
+// WriteStatusLineDegraded emits the status line for the case where the rules
+// could not be loaded: the guardrail fails open, so the honest line is that
+// this session is not being screened.
+func WriteStatusLineDegraded(w io.Writer) error {
+	_, err := fmt.Fprintln(w, "🚧 Fence — ⚠️ rules failed to load, tool calls NOT screened")
+	return err
+}
+
+// displayName renders the product name with its version when known, giving
+// bare release numbers (as -ldflags injects them) their conventional v prefix.
+func displayName(version string) string {
+	name := "Fence"
+	if version != "" {
+		if version[0] >= '0' && version[0] <= '9' {
+			version = "v" + version
+		}
+		name += " " + version
+	}
+	return name
 }
 
 func emit(w io.Writer, out hookOutput) error {

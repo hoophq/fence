@@ -102,11 +102,13 @@ tracked in [#26](https://github.com/hoophq/fence/issues/26).
 fence init --global   # add the Fence hooks to .claude/settings.json, for every project
 ```
 
-Start a Claude Code session and Fence is live — a banner in the chat confirms
-it (`🚧 Fence is guarding this session…`). Ask the agent for something
-reckless — it gets stopped, or asked to confirm, with a `🚧` notice in the chat
-saying which rule fired. Allowed calls get a notice too, so you can see Fence
-watching; `fence init --quiet` turns those off.
+Start a Claude Code session and Fence is live — a status line at the bottom
+of the UI confirms it, for the whole session (`🚧 Fence v1.2.0 · 1 pack ·
+19 rules`). Already have a status line? Fence won't touch it — it announces
+itself with a chat banner instead. Ask the agent for something reckless — it
+gets stopped, or asked to confirm, with a `🚧` notice in the chat saying which
+rule fired. Allowed calls get a notice too, so you can see Fence watching;
+`fence init --quiet` turns those off.
 
 ```bash
 claude

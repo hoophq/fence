@@ -39,6 +39,7 @@ type hookAgent struct {
 	sessionMatcher string
 	trustNote      string // printed after install (Codex's hook-trust step)
 	plugin         bool   // installs a generated plugin file instead of JSON hook entries
+	statusLine     bool   // announces via a statusLine entry, banner hook as fallback
 }
 
 var hookAgents = []hookAgent{
@@ -50,6 +51,7 @@ var hookAgents = []hookAgent{
 		invocation:     "fence hook claude-code",
 		preMatcher:     toolMatcher,
 		sessionMatcher: sessionStartMatcher,
+		statusLine:     true,
 	},
 	{
 		name:           "codex",
@@ -93,16 +95,19 @@ func newInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [agent]",
 		Short: "Install the Fence hooks into an agent's settings",
-		Long: "Adds two hooks to an agent's settings: a PreToolUse hook so Fence\n" +
-			"inspects each tool call, and a SessionStart hook that shows a banner\n" +
-			"confirming the session is guarded. The agent is claude-code (default),\n" +
-			"codex, or opencode. By default it writes the project settings (./.claude,\n" +
-			"./.codex or ./.opencode); use --global for the user-level file under ~.\n" +
+		Long: "Adds Fence to an agent's settings: a PreToolUse hook so Fence inspects\n" +
+			"each tool call, plus visible proof the session is guarded — a status\n" +
+			"line for Claude Code (or, when another status line is already\n" +
+			"configured, a SessionStart chat banner), a SessionStart banner for\n" +
+			"Codex. The agent is claude-code (default), codex, or opencode. By\n" +
+			"default it writes the project settings (./.claude, ./.codex or\n" +
+			"./.opencode); use --global for the user-level file under ~.\n" +
 			"OpenCode has no hooks file, so init installs a small plugin\n" +
 			"(plugins/fence.js) that does the same job.\n\n" +
 			"The change is idempotent and preserves any existing settings. Re-running\n" +
 			"init always converges the hook commands, so it also heals a stale binary\n" +
-			"path and toggles --quiet on or off.",
+			"path, migrates a banner-era install to the status line, and toggles\n" +
+			"--quiet on or off.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := initSupportedOS(runtime.GOOS); err != nil {
@@ -112,13 +117,19 @@ func newInitCommand() *cobra.Command {
 			if err != nil {
 				return fail(cmd, err)
 			}
-			var path string
+			var path, note string
 			var result hookInstallResult
-			if agent.plugin {
+			switch {
+			case agent.plugin:
 				if path, err = opencodePluginPath(global); err == nil {
 					result, err = installOpencodePlugin(path, quiet)
 				}
-			} else {
+			case agent.statusLine:
+				if path, err = settingsPath(agent, global); err == nil {
+					result, note, err = installStatusLineHooks(path, agent,
+						desiredHooks(agent, quiet), hookInvocation(agent)+" statusline", global)
+				}
+			default:
 				if path, err = settingsPath(agent, global); err == nil {
 					result, err = installHooks(path, desiredHooks(agent, quiet))
 				}
@@ -139,6 +150,9 @@ func newInitCommand() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "Restart %s (or start a new session) to pick up the change.\n", agent.display)
 			default:
 				fmt.Fprintf(cmd.OutOrStdout(), "Fence %s already present in %s\n", what, path)
+			}
+			if note != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "%s\n", note)
 			}
 			if agent.trustNote != "" && result != hookUnchanged {
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\n", agent.trustNote)
@@ -233,23 +247,60 @@ const (
 	hookInstalled
 )
 
+// loadSettings reads the settings JSON at path into a generic map. A missing
+// or empty file yields an empty map: converging into nothing is how a fresh
+// install starts.
+func loadSettings(path string) (map[string]any, error) {
+	settings := map[string]any{}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return settings, nil
+		}
+		return nil, err
+	}
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &settings); err != nil {
+			return nil, fmt.Errorf("%s is not valid JSON: %w", path, err)
+		}
+	}
+	return settings, nil
+}
+
+// saveSettings writes the settings map back to path, creating the directory
+// if necessary.
+func saveSettings(path string, settings map[string]any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	out = append(out, '\n')
+	return os.WriteFile(path, out, 0o644)
+}
+
 // installHooks merges the desired hook entries into the settings file at path,
 // creating it if necessary. An existing fence hook whose command differs —
 // e.g. a stale binary path left by a previous install, or a quiet toggle —
 // is updated in place, so re-running `fence init` always converges on working
 // hooks.
 func installHooks(path string, specs []hookSpec) (hookInstallResult, error) {
-	settings := map[string]any{}
-	if data, err := os.ReadFile(path); err == nil {
-		if len(data) > 0 {
-			if err := json.Unmarshal(data, &settings); err != nil {
-				return hookUnchanged, fmt.Errorf("%s is not valid JSON: %w", path, err)
-			}
-		}
-	} else if !os.IsNotExist(err) {
+	settings, err := loadSettings(path)
+	if err != nil {
 		return hookUnchanged, err
 	}
+	result := convergeHooks(settings, specs)
+	if result == hookUnchanged {
+		return hookUnchanged, nil
+	}
+	return result, saveSettings(path, settings)
+}
 
+// convergeHooks merges the desired hook entries into the in-memory settings
+// and reports the most newsworthy change it made.
+func convergeHooks(settings map[string]any, specs []hookSpec) hookInstallResult {
 	hooks := asMap(settings["hooks"])
 
 	result := hookUnchanged
@@ -282,31 +333,18 @@ func installHooks(path string, specs []hookSpec) (hookInstallResult, error) {
 		}
 	}
 
-	if result == hookUnchanged {
-		return hookUnchanged, nil
+	if result != hookUnchanged {
+		settings["hooks"] = hooks
 	}
-	settings["hooks"] = hooks
-
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return hookUnchanged, err
-	}
-	out, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
-		return hookUnchanged, err
-	}
-	out = append(out, '\n')
-	if err := os.WriteFile(path, out, 0o644); err != nil {
-		return hookUnchanged, err
-	}
-	return result, nil
+	return result
 }
 
 // convergeCommand rewrites an existing Fence hook command to the desired
 // invocation while keeping any trailing tokens init does not manage (a
 // hand-added --rules, say): the user put them there, and dropping them would
-// silently weaken their setup. The tokens init owns — the session-start
-// subcommand, --quiet, and the legacy --verbose (now the default, so the
-// token is dropped) — are regenerated from the desired command.
+// silently weaken their setup. The tokens init owns — the session-start and
+// statusline subcommands, --quiet, and the legacy --verbose (now the default,
+// so the token is dropped) — are regenerated from the desired command.
 func convergeCommand(existing, desired, invocation string) string {
 	_, rest, found := strings.Cut(existing, invocation)
 	if !found {
@@ -314,7 +352,7 @@ func convergeCommand(existing, desired, invocation string) string {
 	}
 	var extra []string
 	for tok := range strings.FieldsSeq(rest) {
-		if tok == "session-start" || tok == "--quiet" || tok == "--verbose" {
+		if tok == "session-start" || tok == "statusline" || tok == "--quiet" || tok == "--verbose" {
 			continue
 		}
 		extra = append(extra, tok)

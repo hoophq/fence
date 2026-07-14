@@ -105,13 +105,13 @@ those reports are exactly how the vocabulary grows.
 The hooks live in dev-editable settings, so an agent with file-write access
 can edit `.claude/settings.json` (an **allowed** write today), and deleting
 the binary or `~/.fence` is at worst an *ask*. Two backstops: the agent's own
-permission system still governs those writes, and the SessionStart banner
-makes absence visible — a session that starts without
-`🚧 Fence is guarding this session` isn't guarded. Check for the barrier.
+permission system still governs those writes, and the `🚧 Fence` status line
+(or, where it can't live, the SessionStart banner) makes absence visible — a
+session without the barrier on screen isn't guarded. Check for the barrier.
 
 **Fail-open, stated plainly.**
 If Fence crashes, can't parse its input, or can't load its rules, the tool
-call proceeds and the banner says so. A guardrail that can brick your agent
+call proceeds and the status line says so. A guardrail that can brick your agent
 gets removed within the hour; failing open is the survivable default for a
 dev-owned tool. The cost is real: anything that makes Fence error out
 disarms it. That trade is deliberate.
