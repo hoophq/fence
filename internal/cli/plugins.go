@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -161,13 +162,22 @@ func pluginScriptPath(command, pluginRoot string) (string, bool) {
 	return path, true
 }
 
+// fenceWord matches Fence named as a whole word — a binary path segment
+// (/opt/homebrew/bin/fence), a resolver variable ("$FENCE"), the bare command
+// — but not an unrelated identifier that merely contains the letters
+// ("defence", "fenced").
+var fenceWord = regexp.MustCompile(`(?i)\bfence\b`)
+
 // scriptRunsFence reports whether a plugin's wrapper script invokes Fence's
 // hook for this agent. The binary reaches the script through a variable
 // ("$FENCE" hook claude-code), so containsHook cannot be reused — it keys on
-// the whole invocation including the binary. We require both halves of the
-// evidence: the agent-specific "hook <agent>" subcommand, and Fence named
-// somewhere in the script. Wrapper scripts are small; a size cap keeps a
-// pathological file from being read into memory.
+// the whole invocation including the binary. The evidence must look like an
+// actual invocation, not a mention: a single non-comment line naming Fence as
+// a word and carrying the agent-specific "hook <agent>" subcommand. Comments
+// are skipped and the two halves must share a line, because a script that
+// merely talks about Fence while running something else would otherwise make
+// init skip the hook and leave the user unguarded. Wrapper scripts are small;
+// a size cap keeps a pathological file from being read into memory.
 func scriptRunsFence(path string, agent hookAgent) bool {
 	info, err := os.Stat(path)
 	if err != nil || info.Size() > 64*1024 {
@@ -177,6 +187,15 @@ func scriptRunsFence(path string, agent hookAgent) bool {
 	if err != nil {
 		return false
 	}
-	body := string(data)
-	return strings.Contains(body, "hook "+agent.name) && strings.Contains(strings.ToLower(body), "fence")
+	needle := "hook " + agent.name
+	for line := range strings.Lines(string(data)) {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if strings.Contains(trimmed, needle) && fenceWord.MatchString(trimmed) {
+			return true
+		}
+	}
+	return false
 }

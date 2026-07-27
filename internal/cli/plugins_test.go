@@ -140,6 +140,34 @@ func TestFindPluginHookProvider(t *testing.T) {
 			want:    false,
 		},
 		{
+			// The pinned false-positive guard for scriptRunsFence: both
+			// substrings present, but only in comments — the script talks
+			// about Fence without ever running it.
+			name: "script mentioning fence and the hook only in comments",
+			fixture: pluginFixture{name: plugin, hooks: preToolUse(wrapperCmd),
+				script: "#!/bin/sh\n# unlike fence, this guard has its own hook claude-code integration\n# fence users should uninstall fence first\nexec \"$OTHER_GUARD\" run\n"},
+			scopes: []map[string]any{enabledScope(plugin, true)},
+			want:   false,
+		},
+		{
+			// "fence" as a fragment of another word is not Fence: the word
+			// boundary requirement keeps $DEFENCE from reading as evidence.
+			name: "fence only as a substring of another identifier",
+			fixture: pluginFixture{name: plugin, hooks: preToolUse(wrapperCmd),
+				script: "#!/bin/sh\nexec \"$DEFENCE\" hook claude-code\n"},
+			scopes: []map[string]any{enabledScope(plugin, true)},
+			want:   false,
+		},
+		{
+			// The two halves of the evidence on different lines is a mention,
+			// not an invocation.
+			name: "fence and the hook subcommand on separate lines",
+			fixture: pluginFixture{name: plugin, hooks: preToolUse(wrapperCmd),
+				script: "#!/bin/sh\nFENCE=ignored\nexec \"$OTHER\" hook claude-code\n"},
+			scopes: []map[string]any{enabledScope(plugin, true)},
+			want:   false,
+		},
+		{
 			name:    "hook command with shell syntax is not resolved",
 			fixture: pluginFixture{name: plugin, hooks: preToolUse("sh -c '${CLAUDE_PLUGIN_ROOT}/scripts/hook.sh | tee /tmp/x'"), script: wrapperScript},
 			scopes:  []map[string]any{enabledScope(plugin, true)},
