@@ -74,6 +74,8 @@ central audit, and approval workflows out of scope.
   only duplicates work, a false positive skips the hook and silently leaves the
   user unguarded, so every uncertainty resolves to "install it". `--force-hooks`
   and `--statusline-only`/`--hooks-only` let the user override the split.
+  The plugin side lives in hoophq/claude-marketplace, whose `doctor.sh` and docs
+  name fence CLI flags verbatim — changing init/uninstall UX means syncing that repo.
 - Extension points: new agent = new adapter; new detection = new analyzer fact +
   `Match` predicate. The engine and rulepacks stay agent-agnostic.
 
@@ -93,6 +95,11 @@ central audit, and approval workflows out of scope.
 
 ## Gotchas
 
+- CLI tests: use `runFence`/`runFenceErr` + `isolateHome(t)` (helpers in
+  `hook_test.go`/`opencode_test.go`) — init, statusline, and plugin detection
+  read `~/.claude`, so an unisolated test reads the developer's real settings.
+  E2e tests can't exercise `init`'s own output under `go test` (the binary is
+  `cli.test`, so `containsHook`'s needle misses) — seed settings JSON directly.
 - gopls may report false `BrokenImport` / "not in a workspace module" errors if
   this repo is opened inside another module's `go.work`. Ignore IDE diagnostics
   here — trust `go build ./...` and `go test ./...`.
