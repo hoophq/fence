@@ -127,6 +127,16 @@ func newInitCommand() *cobra.Command {
 			if err != nil {
 				return fail(cmd, err)
 			}
+			// These flags split hook from status-line ownership, which only
+			// exists for Claude Code. Accepting them elsewhere would install
+			// hooks while reporting a status line — a lie in both directions.
+			if !agent.statusLine {
+				for flag, set := range map[string]bool{"--statusline-only": statusLineOnly, "--force-hooks": forceHooks} {
+					if set {
+						return fail(cmd, fmt.Errorf("%s only applies to claude-code: %s has no status line, its hooks are always installed whole", flag, agent.display))
+					}
+				}
+			}
 			var path, note string
 			var result hookInstallResult
 			skipHooks := statusLineOnly
