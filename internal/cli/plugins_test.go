@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -218,6 +219,92 @@ func TestFindPluginHookProviderNoPluginsDir(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if _, found := findPluginHookProvider(hookAgents[0]); found {
 		t.Fatal("reported a provider with no plugins installed")
+	}
+}
+
+// TestHookAlreadyProvided pins the scope policy around standing down. The
+// guard-gap scenario is the load-bearing case: plugin enablement is per-scope,
+// so a global install must never stand down (the user scope enabling the
+// plugin proves nothing about every project), and a project whose local
+// settings disable the plugin must still get the hook.
+func TestHookAlreadyProvided(t *testing.T) {
+	const plugin = "hoop@hooplabs"
+	enabled := `{"enabledPlugins":{"` + plugin + `":true}}`
+	disabled := `{"enabledPlugins":{"` + plugin + `":false}}`
+
+	tests := []struct {
+		name   string
+		user   string // ~/.claude/settings.json ("" = absent)
+		target string // the settings file init writes ("" = absent)
+		local  string // settings.local.json beside the target ("" = absent)
+		global bool
+		want   bool
+	}{
+		{
+			name: "project init stands down when the user scope enables the plugin",
+			user: enabled,
+			want: true,
+		},
+		{
+			// The guard gap: global init covers projects this function cannot
+			// see, any of which may disable the plugin — never stand down.
+			name:   "global init never stands down",
+			user:   enabled,
+			target: enabled,
+			global: true,
+			want:   false,
+		},
+		{
+			name:   "project settings disabling the plugin means no provider",
+			user:   enabled,
+			target: disabled,
+			want:   false,
+		},
+		{
+			name:  "settings.local.json disabling the plugin means no provider",
+			user:  enabled,
+			local: disabled,
+			want:  false,
+		},
+		{
+			name:   "target re-enabling over a user-scope disable stands down",
+			user:   disabled,
+			target: enabled,
+			want:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			writePluginHome(t, pluginFixture{
+				name:   plugin,
+				hooks:  preToolUse("${CLAUDE_PLUGIN_ROOT}/scripts/hook.sh"),
+				script: wrapperScript,
+			})
+			home := os.Getenv("HOME")
+			if tc.user != "" {
+				writeTestFile(t, filepath.Join(home, ".claude", "settings.json"), tc.user)
+			}
+			dir := t.TempDir()
+			path := filepath.Join(dir, ".claude", "settings.json")
+			if tc.global {
+				path = filepath.Join(home, ".claude", "settings.json")
+			}
+			if tc.target != "" && !tc.global {
+				writeTestFile(t, path, tc.target)
+			}
+			if tc.local != "" {
+				writeTestFile(t, filepath.Join(filepath.Dir(path), "settings.local.json"), tc.local)
+			}
+
+			got, note := hookAlreadyProvided(hookAgents[0], path, tc.global)
+			if got != tc.want {
+				t.Fatalf("hookAlreadyProvided = %v, want %v", got, tc.want)
+			}
+			if got && note == "" {
+				t.Error("standing down must explain itself in the note")
+			}
+		})
 	}
 }
 

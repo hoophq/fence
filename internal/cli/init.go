@@ -115,7 +115,9 @@ func newInitCommand() *cobra.Command {
 			"When a Claude Code plugin already provides the Fence hook, init installs\n" +
 			"only the status line (which no plugin can provide) rather than a second\n" +
 			"hook that would evaluate every tool call twice — and removes a duplicate\n" +
-			"an earlier init left behind. Use --force-hooks to install ours anyway.",
+			"an earlier init left behind. Use --force-hooks to install ours anyway.\n" +
+			"A --global install always writes the hooks: it guards every project, and\n" +
+			"any single project can disable the plugin.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := initSupportedOS(runtime.GOOS); err != nil {
@@ -194,19 +196,31 @@ func newInitCommand() *cobra.Command {
 
 // hookAlreadyProvided reports whether an enabled agent plugin already runs the
 // Fence hook, so init should contribute only the status line. The settings
-// scopes that decide which plugins are enabled are the user-level file and the
-// file being written, most specific last.
+// scopes that decide which plugins are enabled are the user-level file, the
+// file being written, and the project's settings.local.json, most specific
+// last — any scope that explicitly disables the plugin means no provider.
+//
+// A global install never stands down: the user-level hook guards every
+// project, but plugin enablement is per-scope, so any single project can
+// disable the plugin and would then be left with no hook at all — a gap this
+// function cannot rule out from here. Duplicated evaluation in plugin-enabled
+// projects is noise; an unguarded project is the one outcome that must not
+// happen. Global users who accept the trade-off have --statusline-only.
 func hookAlreadyProvided(agent hookAgent, path string, global bool) (bool, string) {
-	scopes := make([]map[string]any, 0, 2)
-	if !global {
-		if home, err := os.UserHomeDir(); err == nil {
-			if user, err := loadSettings(filepath.Join(home, ".claude", "settings.json")); err == nil {
-				scopes = append(scopes, user)
-			}
+	if global {
+		return false, ""
+	}
+	scopes := make([]map[string]any, 0, 3)
+	if home, err := os.UserHomeDir(); err == nil {
+		if user, err := loadSettings(filepath.Join(home, ".claude", "settings.json")); err == nil {
+			scopes = append(scopes, user)
 		}
 	}
 	if target, err := loadSettings(path); err == nil {
 		scopes = append(scopes, target)
+	}
+	if local, err := loadSettings(filepath.Join(filepath.Dir(path), "settings.local.json")); err == nil {
+		scopes = append(scopes, local)
 	}
 	provider, found := findPluginHookProvider(agent, scopes...)
 	if !found {
