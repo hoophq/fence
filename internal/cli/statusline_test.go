@@ -15,7 +15,7 @@ const wantStatusCommand = wantCommand + " statusline"
 // ~/.claude/settings.json can't leak into the occupancy check.
 func installStatus(t *testing.T, path string, quiet, global bool) (hookInstallResult, string, error) {
 	t.Helper()
-	return installStatusLineHooks(path, hookAgents[0], testSpecs(quiet), wantStatusCommand, global)
+	return installStatusLineHooks(path, hookAgents[0], testSpecs(quiet), wantStatusCommand, global, false)
 }
 
 func statusLineCommandOf(t *testing.T, path string) string {
@@ -310,7 +310,7 @@ func TestRemoveHooksStatusLineRoundTrip(t *testing.T) {
 	if _, _, err := installStatus(t, path, false, false); err != nil {
 		t.Fatalf("installStatusLineHooks: %v", err)
 	}
-	if got, err := removeHooks(path, claudeInvocation); err != nil || got != hookRemoved {
+	if got, err := removeHooks(path, claudeInvocation, false); err != nil || got != hookRemoved {
 		t.Fatalf("removeHooks = %v, %v; want hookRemoved, nil", got, err)
 	}
 
@@ -330,7 +330,7 @@ func TestRemoveHooksRemovesFenceStatusLine(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	writeTestFile(t, path, `{"model":"opus","statusLine":{"type":"command","command":"`+wantStatusCommand+`"}}`)
 
-	if got, err := removeHooks(path, claudeInvocation); err != nil || got != hookRemoved {
+	if got, err := removeHooks(path, claudeInvocation, false); err != nil || got != hookRemoved {
 		t.Fatalf("removeHooks = %v, %v; want hookRemoved, nil", got, err)
 	}
 	settings := readSettings(t, path)
@@ -348,7 +348,7 @@ func TestRemoveHooksKeepsForeignStatusLine(t *testing.T) {
 	initial := `{"statusLine":{"type":"command","command":"~/.claude/statusline.sh"}}`
 	writeTestFile(t, path, initial)
 
-	if got, err := removeHooks(path, claudeInvocation); err != nil || got != hookAbsent {
+	if got, err := removeHooks(path, claudeInvocation, false); err != nil || got != hookAbsent {
 		t.Fatalf("removeHooks = %v, %v; want hookAbsent, nil", got, err)
 	}
 	data, err := os.ReadFile(path)

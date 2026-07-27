@@ -8,7 +8,10 @@ import (
 )
 
 func newUninstallCommand() *cobra.Command {
-	var global bool
+	var (
+		global    bool
+		hooksOnly bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "uninstall [agent]",
@@ -19,6 +22,9 @@ func newUninstallCommand() *cobra.Command {
 			"opencode (whose generated plugin file is deleted instead). By default it\n" +
 			"edits the project settings (./.claude, ./.codex or ./.opencode); use\n" +
 			"--global for the user-level file under ~.\n\n" +
+			"Use --hooks-only to remove just the hooks and keep Fence's status line —\n" +
+			"what you want when a plugin runs the hook, since no plugin can provide a\n" +
+			"status line.\n\n" +
 			"Rulepacks installed with `fence add` are not touched — remove those with\n" +
 			"`fence remove <pack>`.",
 		Args: cobra.MaximumNArgs(1),
@@ -26,6 +32,9 @@ func newUninstallCommand() *cobra.Command {
 			agent, err := resolveAgent(args)
 			if err != nil {
 				return fail(cmd, err)
+			}
+			if hooksOnly && agent.plugin {
+				return fail(cmd, fmt.Errorf("--hooks-only doesn't apply to %s: its hooks and banner live in one generated plugin file", agent.display))
 			}
 			var path string
 			var result hookRemoveResult
@@ -35,15 +44,18 @@ func newUninstallCommand() *cobra.Command {
 				}
 			} else {
 				if path, err = settingsPath(agent, global); err == nil {
-					result, err = removeHooks(path, agent.invocation)
+					result, err = removeHooks(path, agent.invocation, hooksOnly)
 				}
 			}
 			if err != nil {
 				return fail(cmd, err)
 			}
 			what := "hooks"
-			if agent.plugin {
+			switch {
+			case agent.plugin:
 				what = "plugin"
+			case hooksOnly:
+				what = "hooks (status line kept)"
 			}
 			switch result {
 			case hookRemoved:
@@ -57,6 +69,7 @@ func newUninstallCommand() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&global, "global", false, "remove from the user-level settings under ~ instead of the project")
+	cmd.Flags().BoolVar(&hooksOnly, "hooks-only", false, "remove the hooks but keep Fence's status line")
 	return cmd
 }
 
@@ -77,7 +90,12 @@ const (
 // itself), so init followed by uninstall leaves the settings as they were.
 // Everything else is preserved — a status line that is not Fence's above all
 // — and when there is nothing to remove the file is not rewritten, or created.
-func removeHooks(path, invocation string) (hookRemoveResult, error) {
+//
+// hooksOnly keeps Fence's own status line in place. The two are separable
+// because they can have different owners: a plugin can run the hook, but
+// statusLine is a settings-only field no plugin can declare, so removing a
+// duplicate hook must not cost the user their status line.
+func removeHooks(path, invocation string, hooksOnly bool) (hookRemoveResult, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return hookAbsent, nil
 	}
@@ -95,9 +113,11 @@ func removeHooks(path, invocation string) (hookRemoveResult, error) {
 		delete(settings, "hooks")
 	}
 
-	if cmd, ok := asMap(settings["statusLine"])["command"].(string); ok && containsHook(cmd, invocation) {
-		delete(settings, "statusLine")
-		removed = true
+	if !hooksOnly {
+		if cmd, ok := asMap(settings["statusLine"])["command"].(string); ok && containsHook(cmd, invocation) {
+			delete(settings, "statusLine")
+			removed = true
+		}
 	}
 
 	if !removed {
