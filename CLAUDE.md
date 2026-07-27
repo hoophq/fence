@@ -48,8 +48,9 @@ central audit, and approval workflows out of scope.
 - `internal/registry/` — fetch + sha256-verify packs from a static index
   (`registry/` in this repo, read raw off main). Only the explicit commands
   import it — **nothing on the eval path may ever touch the network**.
-- `internal/cli/` — Cobra commands: `check`, `hook`, `init`, `add`, `search`,
-  `update`, `remove`, `version`.
+- `internal/cli/` — Cobra commands: `check`, `hook`, `init`, `uninstall`, `add`,
+  `search`, `update`, `remove`, `version`. `plugins.go` detects a Claude Code
+  plugin that already runs the Fence hook (see Conventions).
 - `cmd/fence/` — entrypoint; `version` is injected via `-ldflags "-X main.version=..."`.
 
 ## Conventions (load-bearing)
@@ -65,6 +66,16 @@ central audit, and approval workflows out of scope.
   exit codes.
 - **Every detector needs a table-driven test** asserting both the catch AND the
   safe cases (the false-positive guard). See `internal/**/*_test.go`.
+- **One hook per agent, and detection fails toward installing.** A Claude Code
+  plugin can register a Fence hook of its own (the hoop plugin does), so `init`
+  checks for one and then contributes only the status line — the piece no
+  plugin can supply, since `statusLine` is settings-only — removing a duplicate
+  an earlier init left. Detection is conservative on purpose: a false negative
+  only duplicates work, a false positive skips the hook and silently leaves the
+  user unguarded, so every uncertainty resolves to "install it". `--force-hooks`
+  and `--statusline-only`/`--hooks-only` let the user override the split.
+  The plugin side lives in hoophq/claude-marketplace, whose `doctor.sh` and docs
+  name fence CLI flags verbatim — changing init/uninstall UX means syncing that repo.
 - Extension points: new agent = new adapter; new detection = new analyzer fact +
   `Match` predicate. The engine and rulepacks stay agent-agnostic.
 
@@ -84,6 +95,11 @@ central audit, and approval workflows out of scope.
 
 ## Gotchas
 
+- CLI tests: use `runFence`/`runFenceErr` + `isolateHome(t)` (helpers in
+  `hook_test.go`/`opencode_test.go`) — init, statusline, and plugin detection
+  read `~/.claude`, so an unisolated test reads the developer's real settings.
+  E2e tests can't exercise `init`'s own output under `go test` (the binary is
+  `cli.test`, so `containsHook`'s needle misses) — seed settings JSON directly.
 - gopls may report false `BrokenImport` / "not in a workspace module" errors if
   this repo is opened inside another module's `go.work`. Ignore IDE diagnostics
   here — trust `go build ./...` and `go test ./...`.

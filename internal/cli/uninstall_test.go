@@ -78,7 +78,7 @@ func TestRemoveHooks(t *testing.T) {
 				writeTestFile(t, path, tt.initial)
 			}
 
-			got, err := removeHooks(path, claudeInvocation)
+			got, err := removeHooks(path, claudeInvocation, false)
 			if err != nil {
 				t.Fatalf("removeHooks: %v", err)
 			}
@@ -114,7 +114,7 @@ func TestRemoveHooksRoundTrip(t *testing.T) {
 	if _, err := installHooks(path, testSpecs(false)); err != nil {
 		t.Fatalf("installHooks: %v", err)
 	}
-	if got, err := removeHooks(path, claudeInvocation); err != nil || got != hookRemoved {
+	if got, err := removeHooks(path, claudeInvocation, false); err != nil || got != hookRemoved {
 		t.Fatalf("removeHooks = %v, %v; want hookRemoved, nil", got, err)
 	}
 
@@ -139,7 +139,7 @@ func TestRemoveHooksKeepsNonMapHooksKey(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	writeTestFile(t, path, `{"hooks":"keep","statusLine":{"type":"command","command":"`+wantCommand+` statusline"}}`)
 
-	if got, err := removeHooks(path, claudeInvocation); err != nil || got != hookRemoved {
+	if got, err := removeHooks(path, claudeInvocation, false); err != nil || got != hookRemoved {
 		t.Fatalf("removeHooks = %v, %v; want hookRemoved, nil", got, err)
 	}
 	settings := readSettings(t, path)
@@ -158,7 +158,7 @@ func TestRemoveHooksNoOpDoesNotRewrite(t *testing.T) {
 	initial := `{"model":"opus","hooks":{"PostToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"echo hi"}]}]}}`
 	writeTestFile(t, path, initial)
 
-	if got, err := removeHooks(path, claudeInvocation); err != nil || got != hookAbsent {
+	if got, err := removeHooks(path, claudeInvocation, false); err != nil || got != hookAbsent {
 		t.Fatalf("removeHooks = %v, %v; want hookAbsent, nil", got, err)
 	}
 	data, err := os.ReadFile(path)
@@ -173,7 +173,7 @@ func TestRemoveHooksNoOpDoesNotRewrite(t *testing.T) {
 func TestRemoveHooksRejectsInvalidJSON(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	writeTestFile(t, path, "{not json")
-	if _, err := removeHooks(path, claudeInvocation); err == nil {
+	if _, err := removeHooks(path, claudeInvocation, false); err == nil {
 		t.Fatal("expected an error for invalid JSON, got nil")
 	}
 }

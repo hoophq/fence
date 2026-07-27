@@ -40,6 +40,7 @@ type hookAgent struct {
 	trustNote      string // printed after install (Codex's hook-trust step)
 	plugin         bool   // installs a generated plugin file instead of JSON hook entries
 	statusLine     bool   // announces via a statusLine entry, banner hook as fallback
+	pluginHooks    bool   // the agent has a plugin system that can supply hooks of its own
 }
 
 var hookAgents = []hookAgent{
@@ -52,6 +53,7 @@ var hookAgents = []hookAgent{
 		preMatcher:     toolMatcher,
 		sessionMatcher: sessionStartMatcher,
 		statusLine:     true,
+		pluginHooks:    true,
 	},
 	{
 		name:           "codex",
@@ -88,8 +90,10 @@ func resolveAgent(args []string) (hookAgent, error) {
 
 func newInitCommand() *cobra.Command {
 	var (
-		global bool
-		quiet  bool
+		global         bool
+		quiet          bool
+		statusLineOnly bool
+		forceHooks     bool
 	)
 
 	cmd := &cobra.Command{
@@ -107,7 +111,13 @@ func newInitCommand() *cobra.Command {
 			"The change is idempotent and preserves any existing settings. Re-running\n" +
 			"init always converges the hook commands, so it also heals a stale binary\n" +
 			"path, migrates a banner-era install to the status line, and toggles\n" +
-			"--quiet on or off.",
+			"--quiet on or off.\n\n" +
+			"When a Claude Code plugin already provides the Fence hook, init installs\n" +
+			"only the status line (which no plugin can provide) rather than a second\n" +
+			"hook that would evaluate every tool call twice — and removes a duplicate\n" +
+			"an earlier init left behind. Use --force-hooks to install ours anyway.\n" +
+			"A --global install always writes the hooks: it guards every project, and\n" +
+			"any single project can disable the plugin.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := initSupportedOS(runtime.GOOS); err != nil {
@@ -117,8 +127,19 @@ func newInitCommand() *cobra.Command {
 			if err != nil {
 				return fail(cmd, err)
 			}
+			// These flags split hook from status-line ownership, which only
+			// exists for Claude Code. Accepting them elsewhere would install
+			// hooks while reporting a status line — a lie in both directions.
+			if !agent.statusLine {
+				for flag, set := range map[string]bool{"--statusline-only": statusLineOnly, "--force-hooks": forceHooks} {
+					if set {
+						return fail(cmd, fmt.Errorf("%s only applies to claude-code: %s has no status line, its hooks are always installed whole", flag, agent.display))
+					}
+				}
+			}
 			var path, note string
 			var result hookInstallResult
+			skipHooks := statusLineOnly
 			switch {
 			case agent.plugin:
 				if path, err = opencodePluginPath(global); err == nil {
@@ -126,8 +147,13 @@ func newInitCommand() *cobra.Command {
 				}
 			case agent.statusLine:
 				if path, err = settingsPath(agent, global); err == nil {
+					var providerNote string
+					if !skipHooks && !forceHooks {
+						skipHooks, providerNote = hookAlreadyProvided(agent, path, global)
+					}
 					result, note, err = installStatusLineHooks(path, agent,
-						desiredHooks(agent, quiet), hookInvocation(agent)+" statusline", global)
+						desiredHooks(agent, quiet), hookInvocation(agent)+" statusline", global, skipHooks)
+					note = joinNotes(providerNote, note)
 				}
 			default:
 				if path, err = settingsPath(agent, global); err == nil {
@@ -138,8 +164,11 @@ func newInitCommand() *cobra.Command {
 				return fail(cmd, err)
 			}
 			what, updated := "hooks", "hook commands"
-			if agent.plugin {
+			switch {
+			case agent.plugin:
 				what, updated = "plugin", "plugin"
+			case skipHooks:
+				what, updated = "status line", "status line"
 			}
 			switch result {
 			case hookInstalled:
@@ -164,11 +193,63 @@ func newInitCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&global, "global", false, "install into the user-level settings under ~ instead of the project")
 	cmd.Flags().BoolVar(&quiet, "quiet", false,
 		"don't show a chat notice for allowed tool calls (re-run init without it to switch back)")
+	cmd.Flags().BoolVar(&statusLineOnly, "statusline-only", false,
+		"install only Fence's status line, never the hooks (for when something else runs the hook)")
+	cmd.Flags().BoolVar(&forceHooks, "force-hooks", false,
+		"install Fence's own hooks even when a plugin already provides them")
 	// --verbose asked for what is now the default; running it plain is correct.
 	cmd.Flags().Bool("verbose", true, "")
 	_ = cmd.Flags().MarkDeprecated("verbose",
 		"allowed-call notices are now the default; use --quiet to turn them off")
 	return cmd
+}
+
+// hookAlreadyProvided reports whether an enabled agent plugin already runs the
+// Fence hook, so init should contribute only the status line. The settings
+// scopes that decide which plugins are enabled are the user-level file, the
+// file being written, and the project's settings.local.json, most specific
+// last — any scope that explicitly disables the plugin means no provider.
+//
+// A global install never stands down: the user-level hook guards every
+// project, but plugin enablement is per-scope, so any single project can
+// disable the plugin and would then be left with no hook at all — a gap this
+// function cannot rule out from here. Duplicated evaluation in plugin-enabled
+// projects is noise; an unguarded project is the one outcome that must not
+// happen. Global users who accept the trade-off have --statusline-only.
+func hookAlreadyProvided(agent hookAgent, path string, global bool) (bool, string) {
+	if global {
+		return false, ""
+	}
+	scopes := make([]map[string]any, 0, 3)
+	if home, err := os.UserHomeDir(); err == nil {
+		if user, err := loadSettings(filepath.Join(home, ".claude", "settings.json")); err == nil {
+			scopes = append(scopes, user)
+		}
+	}
+	if target, err := loadSettings(path); err == nil {
+		scopes = append(scopes, target)
+	}
+	if local, err := loadSettings(filepath.Join(filepath.Dir(path), "settings.local.json")); err == nil {
+		scopes = append(scopes, local)
+	}
+	provider, found := findPluginHookProvider(agent, scopes...)
+	if !found {
+		return false, ""
+	}
+	return true, fmt.Sprintf("The %s plugin already provides the Fence hook, so only the status line was\n"+
+		"installed here — a second hook would evaluate every tool call twice.\n"+
+		"Use --force-hooks to install Fence's own hook anyway.", provider.name)
+}
+
+// joinNotes combines the notes init collected, skipping the empty ones.
+func joinNotes(notes ...string) string {
+	var kept []string
+	for _, n := range notes {
+		if n != "" {
+			kept = append(kept, n)
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 // initSupportedOS refuses to install hooks where the hook path has never been

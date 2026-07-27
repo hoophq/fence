@@ -13,10 +13,18 @@ import (
 // replaces. When another status line is configured, in this file or a scope
 // that interacts with it, Fence leaves it untouched and falls back to the
 // SessionStart banner spec; the returned note tells the user why.
-func installStatusLineHooks(path string, agent hookAgent, specs []hookSpec, slCommand string, global bool) (hookInstallResult, string, error) {
+//
+// skipHooks hands the hook surface to whatever already runs it (a plugin, or
+// the user's own arrangement under --statusline-only) and reduces the install
+// to the status line alone.
+func installStatusLineHooks(path string, agent hookAgent, specs []hookSpec, slCommand string, global, skipHooks bool) (hookInstallResult, string, error) {
 	settings, err := loadSettings(path)
 	if err != nil {
 		return hookUnchanged, "", err
+	}
+
+	if skipHooks {
+		return installStatusLineOnly(path, settings, agent, slCommand, global)
 	}
 
 	pre, session := specs[0], specs[1]
@@ -52,6 +60,46 @@ func installStatusLineHooks(path string, agent hookAgent, specs []hookSpec, slCo
 		return hookUnchanged, "", nil
 	}
 	return result, "", saveSettings(path, settings)
+}
+
+// installStatusLineOnly contributes just the status line: the one piece of a
+// Fence install a plugin cannot supply, since statusLine is a settings-only
+// field. Any Fence hooks a previous init left in this file are removed on the
+// way through — that duplicate is exactly what makes Fence run twice per tool
+// call, and leaving it would defeat the point of standing down. When the
+// status line slot belongs to someone else there is nothing left to
+// contribute, and the note says so rather than reporting a hollow success.
+func installStatusLineOnly(path string, settings map[string]any, agent hookAgent, slCommand string, global bool) (hookInstallResult, string, error) {
+	result := hookUnchanged
+	hooks := asMap(settings["hooks"])
+	for _, event := range []string{"PreToolUse", "SessionStart"} {
+		if removeEventHooks(hooks, event, agent.invocation) {
+			result = max(result, hookUpdated)
+		}
+	}
+	if result != hookUnchanged && len(hooks) == 0 {
+		delete(settings, "hooks")
+	}
+
+	note := ""
+	if takenAt, taken := statusLineTaken(path, settings, global, agent.invocation); taken {
+		// Ours would shadow theirs, so it goes; the hook still guards the
+		// session, it just no longer announces itself here.
+		if cmd, ok := asMap(settings["statusLine"])["command"].(string); ok && containsHook(cmd, agent.invocation) {
+			delete(settings, "statusLine")
+			result = max(result, hookUpdated)
+		}
+		note = fmt.Sprintf("A status line is already configured (%s) — left untouched, so Fence adds nothing here.\n"+
+			"To show Fence there too, have your statusline command append the output of `%s statusline`.",
+			takenAt, agent.invocation)
+	} else {
+		result = max(result, convergeStatusLine(settings, agent.invocation, slCommand))
+	}
+
+	if result == hookUnchanged {
+		return hookUnchanged, note, nil
+	}
+	return result, note, saveSettings(path, settings)
 }
 
 // convergeStatusLine points the settings' statusLine entry at command.

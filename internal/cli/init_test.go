@@ -233,6 +233,24 @@ func TestInitLegacyVerboseFlagStillAccepted(t *testing.T) {
 	}
 }
 
+// The hook/status-line ownership split only exists for Claude Code. On other
+// agents the flags must be rejected outright — silently accepting them would
+// install hooks while the output claims a status line was written.
+func TestInitStatusLineFlagsRejectedWithoutStatusLine(t *testing.T) {
+	isolateHome(t)
+	for _, tc := range []struct{ agent, flag string }{
+		{"codex", "--statusline-only"},
+		{"codex", "--force-hooks"},
+		{"opencode", "--statusline-only"},
+		{"opencode", "--force-hooks"},
+	} {
+		err := runFenceErr(t, "init", tc.agent, tc.flag)
+		if err == nil || !strings.Contains(err.Error(), tc.flag) {
+			t.Errorf("init %s %s: err = %v, want an error naming the flag", tc.agent, tc.flag, err)
+		}
+	}
+}
+
 // A matcher the user narrowed (e.g. dropped WebFetch) must survive healing:
 // init converges commands, never matchers.
 func TestInstallHooksPreservesCustomMatcher(t *testing.T) {
