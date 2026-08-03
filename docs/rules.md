@@ -86,7 +86,14 @@ names several paths, the most severe one decides — so `rm -rf /tmp/x ~` is
 `temp` covers paths **under** a temp root only. The root itself and a bare
 wildcard sweep of it (`/tmp`, `/tmp/*`, `$TMPDIR`) stay `outside_workspace`,
 since those wipe every process's scratch state rather than one named target; a
-prefixed glob like `/tmp/build-*` is specific enough to count as `temp`. Nothing
+prefixed glob like `/tmp/build-*` is specific enough to count as `temp`.
+
+`$TMPDIR` is resolved to its actual value before the path is classified, so it
+counts as `temp` only when it really points into a temp directory. If `TMPDIR`
+is unset — common on Linux — the shell expands `rm -rf $TMPDIR/scratch` to
+`rm -rf /scratch`, which is `outside_workspace` and still asks. A path inside
+your workspace is `cwd_relative` even when the workspace itself lives under
+`/tmp`. Nothing
 in the recommended pack matches `temp`, so scratch deletes fall through to the
 default `allow` — match it explicitly if you want them back:
 

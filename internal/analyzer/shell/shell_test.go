@@ -1,9 +1,16 @@
 package shell
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestRecursiveDeleteClassification(t *testing.T) {
 	const cwd = "/Users/dev/project"
+
+	// $TMPDIR is resolved against the environment, so pin it rather than
+	// inheriting whatever the machine running the tests happens to have.
+	t.Setenv("TMPDIR", "/tmp")
 
 	cases := []struct {
 		name      string
@@ -89,6 +96,96 @@ func TestRecursiveDeleteClassification(t *testing.T) {
 			}
 			if a.RecursiveDelete != tc.recursive {
 				t.Errorf("RecursiveDelete = %v, want %v", a.RecursiveDelete, tc.recursive)
+			}
+			if a.DeleteTarget != tc.target {
+				t.Errorf("DeleteTarget = %v, want %v", a.DeleteTarget, tc.target)
+			}
+		})
+	}
+}
+
+// TestTmpdirResolution pins the fail-closed handling of $TMPDIR. Trusting the
+// spelling would be a hole: with TMPDIR unset the shell expands
+// `rm -rf $TMPDIR/scratch` to `rm -rf /scratch`, which is not scratch space at
+// all, so anything we cannot resolve to a real temp directory must still prompt.
+func TestTmpdirResolution(t *testing.T) {
+	const cwd = "/Users/dev/project"
+
+	cases := []struct {
+		name    string
+		tmpdir  string
+		setEnv  bool
+		command string
+		target  DeleteTarget
+	}{
+		{"set to tmp", "/tmp", true, "rm -rf $TMPDIR/scratch", TargetTemp},
+		{"set with trailing slash", "/tmp/", true, "rm -rf $TMPDIR/scratch", TargetTemp},
+		{"set to mac per-user temp", "/var/folders/zz/9k1n_c/T", true, "rm -rf $TMPDIR/build", TargetTemp},
+		// Unset, empty, or relative: unresolvable, so ask rather than allow.
+		{"unset", "", false, "rm -rf $TMPDIR/scratch", TargetOutsideWorkspace},
+		{"empty", "", true, "rm -rf $TMPDIR/scratch", TargetOutsideWorkspace},
+		{"relative", "relative/tmp", true, "rm -rf $TMPDIR/scratch", TargetOutsideWorkspace},
+		// Pointing somewhere that is not a temp directory does not make it one.
+		{"not a temp dir", "/Users/dev/scratch", true, "rm -rf $TMPDIR/x", TargetOutsideWorkspace},
+		// Root itself stays the most severe answer however we get there.
+		{"tmpdir is root", "/", true, "rm -rf $TMPDIR", TargetSensitive},
+		// A different variable that merely starts with the same letters.
+		{"lookalike variable", "/tmp", true, "rm -rf $TMPDIRX/scratch", TargetOutsideWorkspace},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.setEnv {
+				t.Setenv("TMPDIR", tc.tmpdir)
+			} else {
+				// t.Setenv restores the previous value (including absence) on cleanup.
+				t.Setenv("TMPDIR", "")
+				if err := os.Unsetenv("TMPDIR"); err != nil {
+					t.Fatalf("unset TMPDIR: %v", err)
+				}
+			}
+			a := Analyze(tc.command, cwd)
+			if !a.Parsed {
+				t.Fatalf("command did not parse: %q", tc.command)
+			}
+			if a.DeleteTarget != tc.target {
+				t.Errorf("DeleteTarget = %v, want %v", a.DeleteTarget, tc.target)
+			}
+		})
+	}
+}
+
+// TestWorkspaceInsideTempDir pins the ordering between the temp and
+// workspace-local tiers. temp ranks below cwd-relative on the severity scale, so
+// a project that happens to live under /tmp must classify its own files as
+// workspace-local — otherwise a pack that opts into `delete_target: temp` would
+// see the workspace's own deletes as scratch.
+func TestWorkspaceInsideTempDir(t *testing.T) {
+	t.Setenv("TMPDIR", "/tmp")
+	const cwd = "/tmp/myproject"
+
+	cases := []struct {
+		name    string
+		command string
+		target  DeleteTarget
+	}{
+		// Inside the workspace: workspace-local, even though it is also under /tmp.
+		{"workspace subdir", "rm -rf /tmp/myproject/dist", TargetCwdRelative},
+		{"workspace itself", "rm -rf /tmp/myproject", TargetCwdRelative},
+		{"workspace relative", "rm -rf dist", TargetCwdRelative},
+		// A sibling under the same temp root is not part of the workspace, so it
+		// falls back to scratch space.
+		{"sibling in temp", "rm -rf /tmp/other-agent", TargetTemp},
+		// The temp root and a bare sweep of it still ask, workspace or not.
+		{"temp root", "rm -rf /tmp", TargetOutsideWorkspace},
+		{"temp root sweep", "rm -rf /tmp/*", TargetOutsideWorkspace},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Analyze(tc.command, cwd)
+			if !a.Parsed {
+				t.Fatalf("command did not parse: %q", tc.command)
 			}
 			if a.DeleteTarget != tc.target {
 				t.Errorf("DeleteTarget = %v, want %v", a.DeleteTarget, tc.target)

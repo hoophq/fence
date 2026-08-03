@@ -9,6 +9,7 @@
 package shell
 
 import (
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -743,6 +744,12 @@ func classifyTarget(target, cwd string) DeleteTarget {
 	if t == "" {
 		return TargetNone
 	}
+	// Resolve a leading $TMPDIR into the path the shell will really act on, so it
+	// is judged on where it points rather than on its name. When TMPDIR is unset
+	// the operand is left alone and falls through to the unresolved-variable guard
+	// below — `rm -rf $TMPDIR/x` is `rm -rf /x` on such a machine, not scratch.
+	t = expandTmpdir(t)
+
 	// Strip a single trailing slash for comparison, but remember it existed.
 	bare := strings.TrimSuffix(t, "/")
 
@@ -765,23 +772,24 @@ func classifyTarget(target, cwd string) DeleteTarget {
 		return TargetSensitive
 	}
 
-	// Scratch space inside a temp directory, checked once the sensitive roots are
-	// ruled out: throwaway by definition, and the least sensitive class there is.
-	if isUnderTempDir(t) {
-		return TargetTemp
-	}
-
 	// A path *under* home (e.g. ~/.cache, $HOME/work) — escapes the workspace.
 	if strings.HasPrefix(t, "~/") || strings.HasPrefix(t, "$HOME/") || strings.HasPrefix(t, "${HOME}/") {
 		return TargetOutsideWorkspace
 	}
 
-	// Absolute paths: inside cwd is workspace-relative, otherwise outside.
+	// Absolute paths: inside cwd is workspace-relative, otherwise scratch space if
+	// it sits under a temp directory, otherwise outside the workspace. Containment
+	// in cwd is checked first so that a workspace which itself lives under /tmp
+	// still classifies its own files as workspace-local — temp ranks below
+	// cwd-relative on the scale, and the ordering here has to agree.
 	if strings.HasPrefix(t, "/") {
 		if cwd != "" {
 			if rel, err := filepath.Rel(cwd, t); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 				return TargetCwdRelative
 			}
+		}
+		if isUnderTempDir(t) {
+			return TargetTemp
 		}
 		return TargetOutsideWorkspace
 	}
@@ -804,10 +812,45 @@ func classifyTarget(target, cwd string) DeleteTarget {
 // tempRoots are the directories whose contents are scratch space. The macOS
 // /private/* forms are the real paths behind /tmp and /var/tmp, which a tool
 // resolving symlinks will hand us instead of the short form.
+//
+// $TMPDIR is deliberately absent: it is resolved to its value by expandTmpdir
+// before classification, so what lands here is always a concrete path.
 var tempRoots = []string{
 	"/tmp", "/var/tmp",
 	"/private/tmp", "/private/var/tmp",
-	"$TMPDIR", "${TMPDIR}",
+}
+
+// tmpdirForms are the shell spellings of the TMPDIR variable that expandTmpdir
+// recognises. Only a whole-segment match counts, so $TMPDIRX stays unresolved.
+var tmpdirForms = []string{"${TMPDIR}", "$TMPDIR"}
+
+// expandTmpdir rewrites a leading $TMPDIR / ${TMPDIR} into the value the shell
+// would expand it to, so the operand can be judged on where it actually points.
+//
+// Trusting the spelling alone fails open: on a machine with TMPDIR unset the
+// shell expands `rm -rf $TMPDIR/scratch` to `rm -rf /scratch`, a root-level
+// delete. When TMPDIR is unset, empty, or not absolute, the operand is returned
+// untouched so the caller's unresolved-variable guard classifies it as outside
+// the workspace and the user gets a prompt — the right answer for a variable we
+// cannot resolve. Reading the environment is safe here: fence is spawned by the
+// agent that will run the command, so it inherits the same TMPDIR the shell sees.
+func expandTmpdir(t string) string {
+	for _, form := range tmpdirForms {
+		rest, ok := strings.CutPrefix(t, form)
+		if !ok {
+			continue
+		}
+		// $TMPDIRX and ${TMPDIR}x name something else entirely.
+		if rest != "" && !strings.HasPrefix(rest, "/") {
+			continue
+		}
+		val := os.Getenv("TMPDIR")
+		if !strings.HasPrefix(val, "/") {
+			return t
+		}
+		return path.Clean(val + "/" + rest)
+	}
+	return t
 }
 
 // macTempFolderRe matches the per-user temp directory macOS puts $TMPDIR in

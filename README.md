@@ -172,7 +172,9 @@ Scratch space is the deliberate exception: clearing a path *inside* a temp
 directory (`rm -rf /tmp/build`, `$TMPDIR/x`, `/var/tmp/y`) passes in silence,
 because agents do it constantly and the blast radius is throwaway data. The temp
 root itself and a bare sweep of it (`rm -rf /tmp`, `rm -rf /tmp/*`) still ask —
-those wipe every process's scratch state.
+those wipe every process's scratch state. `$TMPDIR` is resolved before the path
+is judged, so on a machine where it is unset (`$TMPDIR/x` really means `/x`) the
+prompt stays.
 
 **→ [Write your own rules & the full match reference](docs/rules.md)**
 

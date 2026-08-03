@@ -14,6 +14,10 @@ func TestRecommendedShellDecisions(t *testing.T) {
 	e := recommendedEngine(t)
 	const cwd = "/Users/dev/project"
 
+	// $TMPDIR resolves against the environment, so pin it rather than depending on
+	// what the machine running the tests happens to set (Linux often sets nothing).
+	t.Setenv("TMPDIR", "/tmp")
+
 	cases := []struct {
 		command string
 		want    Effect
@@ -106,6 +110,26 @@ func TestRecommendedInstallDecisions(t *testing.T) {
 				t.Errorf("deciding rule = %q, want %q", gotRule, tc.rule)
 			}
 		})
+	}
+}
+
+// TestRecommendedTmpdirUnsetAsks pins the end-to-end consequence of an unset
+// TMPDIR: the shell expands `rm -rf $TMPDIR/scratch` to `rm -rf /scratch`, so
+// the scratch-space allowance must not apply and the user must still be asked.
+func TestRecommendedTmpdirUnsetAsks(t *testing.T) {
+	e := recommendedEngine(t)
+	// t.Setenv registers the restore; Unsetenv then removes the variable outright.
+	t.Setenv("TMPDIR", "")
+	if err := os.Unsetenv("TMPDIR"); err != nil {
+		t.Fatalf("unset TMPDIR: %v", err)
+	}
+
+	d := e.Evaluate(Action{Kind: ActionShell, Command: "rm -rf $TMPDIR/scratch", Cwd: "/Users/dev/project"})
+	if d.Effect != EffectAsk {
+		t.Fatalf("effect = %v, want %v", d.Effect, EffectAsk)
+	}
+	if d.Rule == nil || d.Rule.ID != "destructive-delete-outside-workspace" {
+		t.Errorf("deciding rule = %v, want destructive-delete-outside-workspace", d.Rule)
 	}
 }
 
