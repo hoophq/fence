@@ -9,6 +9,7 @@
 package shell
 
 import (
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -24,11 +25,16 @@ type DeleteTarget int
 const (
 	// TargetNone means no target was found.
 	TargetNone DeleteTarget = iota
+	// TargetTemp is a path *inside* a system temp directory (/tmp/build-x,
+	// $TMPDIR/cache). Agents create and clear scratch space constantly and the
+	// blast radius is throwaway data, so these rank below workspace-local paths
+	// on the severity scale and must not prompt.
+	TargetTemp
 	// TargetCwdRelative is a path inside the current workspace (e.g. ./dist,
 	// node_modules, *). These are everyday operations and must not be blocked.
 	TargetCwdRelative
 	// TargetOutsideWorkspace is a path that escapes the workspace but is not a
-	// well-known sensitive root (e.g. ~/.cache/foo, /tmp/x, ../sibling).
+	// well-known sensitive root (e.g. ~/.cache/foo, /tmp itself, ../sibling).
 	TargetOutsideWorkspace
 	// TargetSensitive is a home/root/system root (~, $HOME, /, /*). Touching
 	// these destructively is almost never intentional from an agent.
@@ -37,6 +43,8 @@ const (
 
 func (t DeleteTarget) String() string {
 	switch t {
+	case TargetTemp:
+		return "temp"
 	case TargetCwdRelative:
 		return "cwd_relative"
 	case TargetOutsideWorkspace:
@@ -757,6 +765,12 @@ func classifyTarget(target, cwd string) DeleteTarget {
 		return TargetSensitive
 	}
 
+	// Scratch space inside a temp directory, checked once the sensitive roots are
+	// ruled out: throwaway by definition, and the least sensitive class there is.
+	if isUnderTempDir(t) {
+		return TargetTemp
+	}
+
 	// A path *under* home (e.g. ~/.cache, $HOME/work) — escapes the workspace.
 	if strings.HasPrefix(t, "~/") || strings.HasPrefix(t, "$HOME/") || strings.HasPrefix(t, "${HOME}/") {
 		return TargetOutsideWorkspace
@@ -785,6 +799,67 @@ func classifyTarget(target, cwd string) DeleteTarget {
 
 	// Everything else (., ./build, node_modules, *, dist/) is workspace-local.
 	return TargetCwdRelative
+}
+
+// tempRoots are the directories whose contents are scratch space. The macOS
+// /private/* forms are the real paths behind /tmp and /var/tmp, which a tool
+// resolving symlinks will hand us instead of the short form.
+var tempRoots = []string{
+	"/tmp", "/var/tmp",
+	"/private/tmp", "/private/var/tmp",
+	"$TMPDIR", "${TMPDIR}",
+}
+
+// macTempFolderRe matches the per-user temp directory macOS puts $TMPDIR in
+// (/var/folders/<hash>/<hash>/T), optionally via its /private real path. The
+// sibling C directory under the same prefix is the user's cache, not scratch,
+// so the trailing /T is required.
+var macTempFolderRe = regexp.MustCompile(`^(/private)?/var/folders/[^/]+/[^/]+/T(/|$)`)
+
+// isUnderTempDir reports whether target names a path *inside* a temp directory.
+//
+// The temp root itself is deliberately excluded: `rm -rf /tmp` and the bare
+// wildcard sweep `rm -rf /tmp/*` wipe every process's scratch state (and on
+// macOS /tmp is a system symlink), which is exactly the ambiguous case worth a
+// prompt. A prefixed glob like /tmp/build-* still names a specific target, so it
+// qualifies. The path is cleaned first, so a traversal that escapes the root
+// (/tmp/../etc, which is really /etc) loses the prefix and falls through to the
+// normal classification.
+func isUnderTempDir(target string) bool {
+	// path.Clean, not filepath.Clean: these are shell paths, always slash-separated.
+	cleaned := path.Clean(target)
+
+	rest, ok := afterTempRoot(cleaned)
+	if !ok {
+		return false
+	}
+	// The first segment under the root must name something specific.
+	first, _, _ := strings.Cut(rest, "/")
+	return first != "" && !isBareGlob(first)
+}
+
+// afterTempRoot strips a temp-directory prefix from a cleaned path and returns
+// the remainder. A path equal to the root itself has no remainder and so is not
+// "under" it.
+func afterTempRoot(cleaned string) (string, bool) {
+	for _, root := range tempRoots {
+		if rest, ok := strings.CutPrefix(cleaned, root+"/"); ok {
+			return rest, true
+		}
+	}
+	if loc := macTempFolderRe.FindString(cleaned); strings.HasSuffix(loc, "/") {
+		return cleaned[len(loc):], true
+	}
+	return "", false
+}
+
+// isBareGlob reports whether a path segment is nothing but wildcards (*, **, ?)
+// — a sweep of the whole directory rather than a named target.
+func isBareGlob(segment string) bool {
+	if segment == "" {
+		return false
+	}
+	return strings.Trim(segment, "*?") == ""
 }
 
 // isNetToShellPipe reports whether a pipeline routes a network fetcher into a

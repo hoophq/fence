@@ -58,9 +58,9 @@ Matched against semantic facts from the shell parser — not the raw text.
 | Field | Fires on |
 |---|---|
 | `recursive_delete` | an `rm` with a recursive flag (`-r`, `-R`, `--recursive`) |
-| `delete_target` | where a recursive delete points: `sensitive` \| `outside_workspace` \| `any` |
+| `delete_target` | where a recursive delete points: `sensitive` \| `outside_workspace` \| `temp` \| `any` |
 | `chmod_world_writable` | a chmod granting write to "others" (`777`, `666`, `o+w`, `a+w`) |
-| `chmod_target` | where a world-writable chmod points: `sensitive` \| `outside_workspace` \| `any` |
+| `chmod_target` | where a world-writable chmod points: `sensitive` \| `outside_workspace` \| `temp` \| `any` |
 | `block_device_write` | `dd of=/dev/sdX`, `mkfs` on a device, or a redirect to a raw disk |
 | `force_push` | `git push --force` / `-f` (but **not** `--force-with-lease`) |
 | `history_rewrite` | `git reset --hard`, `git clean -fd` |
@@ -71,6 +71,32 @@ Matched against semantic facts from the shell parser — not the raw text.
 | `secret_exfil` | a secret is read **and** routed to the network: `high` (keys / cloud creds) \| `any` (incl. `.env`) |
 | `secret_read` | a content-dumping command reads a secret into stdout: `high` \| `any` |
 | `command_in` | any of the named commands is invoked |
+
+`delete_target` and `chmod_target` share one path-severity scale. When a command
+names several paths, the most severe one decides — so `rm -rf /tmp/x ~` is
+`sensitive`, not `temp`.
+
+| Value | Means | Example |
+|---|---|---|
+| `sensitive` | a home, root, or system root | `~` · `$HOME` · `/` · `/*` |
+| `outside_workspace` | escapes the workspace, but is not a sensitive root | `~/.cache/x` · `../sibling` · `/usr/local/bin` |
+| `temp` | scratch space *inside* a temp directory | `/tmp/build` · `/var/tmp/x` · `$TMPDIR/y` · macOS `/var/folders/…/T/z` |
+| `any` | any of the above (anything but "no target found") | |
+
+`temp` covers paths **under** a temp root only. The root itself and a bare
+wildcard sweep of it (`/tmp`, `/tmp/*`, `$TMPDIR`) stay `outside_workspace`,
+since those wipe every process's scratch state rather than one named target; a
+prefixed glob like `/tmp/build-*` is specific enough to count as `temp`. Nothing
+in the recommended pack matches `temp`, so scratch deletes fall through to the
+default `allow` — match it explicitly if you want them back:
+
+```yaml
+rules:
+  - id: confirm-temp-deletes
+    effect: ask
+    match:
+      shell: { recursive_delete: true, delete_target: temp }
+```
 
 ### Files (`file_write` / `file_read`)
 

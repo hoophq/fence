@@ -31,6 +31,19 @@ func TestRecommendedShellDecisions(t *testing.T) {
 		{"git push --force", EffectAsk, "git-force-push"},
 		{"git reset --hard HEAD~2", EffectAsk, "git-destructive-history"},
 
+		// Clearing scratch space in a temp dir -> allow. Agents do this constantly;
+		// prompting every time is the false positive that gets Fence uninstalled.
+		{"rm -rf /tmp/agent-build", EffectAllow, ""},
+		{"rm -rf /var/tmp/cache", EffectAllow, ""},
+		{"rm -rf $TMPDIR/scratch", EffectAllow, ""},
+		{"rm -rf /var/folders/zz/9k1n_c/T/build", EffectAllow, ""},
+		// ...but the temp root itself, and a bare sweep of it, still ask.
+		{"rm -rf /tmp", EffectAsk, "destructive-delete-outside-workspace"},
+		{"rm -rf /tmp/*", EffectAsk, "destructive-delete-outside-workspace"},
+		{"rm -rf $TMPDIR/*", EffectAsk, "destructive-delete-outside-workspace"},
+		// A temp operand never launders a dangerous one alongside it.
+		{"rm -rf /tmp/scratch ~", EffectDeny, "destructive-delete-sensitive"},
+
 		// Everyday operations -> allow (no false positives).
 		{"rm -rf node_modules", EffectAllow, ""},
 		{"rm -rf ./dist", EffectAllow, ""},

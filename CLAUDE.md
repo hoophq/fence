@@ -60,7 +60,10 @@ central audit, and approval workflows out of scope.
   denylist. A rule's `regex` field is a fallback only (e.g. fork bombs).
 - **Near-zero false positives is the product thesis.** Ambiguous → `ask`; only
   unambiguous catastrophe → `deny`. Everyday ops (`rm -rf node_modules`,
-  `rm -rf *`, `git push --force-with-lease`) MUST stay ALLOW.
+  `rm -rf *`, `rm -rf /tmp/scratch`, `git push --force-with-lease`) MUST stay
+  ALLOW. Deletes under a temp root classify as `temp`, the least-severe rung of
+  the shared path scale, so no rule matches them — but the root itself and a
+  bare sweep (`/tmp`, `/tmp/*`, `$TMPDIR`) stay `outside_workspace` and ask.
 - **Fail open.** A hook never blocks on internal error: log to stderr, exit 0.
   Decisions travel through the JSON protocol (`permissionDecision`), never via
   exit codes.

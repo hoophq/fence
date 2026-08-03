@@ -29,8 +29,45 @@ func TestRecursiveDeleteClassification(t *testing.T) {
 
 		// Outside the workspace but not a sensitive root — should ask, not deny.
 		{"home subdir", "rm -rf ~/.cache/thing", true, TargetOutsideWorkspace},
-		{"tmp", "rm -rf /tmp/scratch", true, TargetOutsideWorkspace},
 		{"parent escape", "rm -rf ../sibling", true, TargetOutsideWorkspace},
+
+		// Scratch space inside a temp dir — MUST NOT be flagged. Agents create and
+		// clear these constantly and the blast radius is throwaway data.
+		{"tmp subdir", "rm -rf /tmp/scratch", true, TargetTemp},
+		{"tmp nested", "rm -rf /tmp/agent/build/out", true, TargetTemp},
+		{"tmp trailing slash", "rm -rf /tmp/scratch/", true, TargetTemp},
+		{"tmp prefixed glob", "rm -rf /tmp/build-*", true, TargetTemp},
+		{"tmp redundant separators", "rm -rf /tmp//agent/./out", true, TargetTemp},
+		{"var tmp", "rm -rf /var/tmp/cache", true, TargetTemp},
+		{"private tmp", "rm -rf /private/tmp/scratch", true, TargetTemp},
+		{"private var tmp", "rm -rf /private/var/tmp/scratch", true, TargetTemp},
+		{"mac tmpdir folders", "rm -rf /var/folders/zz/9k1n_c/T/build", true, TargetTemp},
+		{"mac tmpdir folders private", "rm -rf /private/var/folders/zz/9k1n_c/T/build", true, TargetTemp},
+		{"tmpdir var", "rm -rf $TMPDIR/scratch", true, TargetTemp},
+		{"tmpdir var braces", "rm -rf ${TMPDIR}/scratch", true, TargetTemp},
+		{"tmpdir var quoted", "rm -rf \"$TMPDIR\"/scratch", true, TargetTemp},
+		{"sudo tmp", "sudo rm -rf /tmp/scratch", true, TargetTemp},
+
+		// The temp root ITSELF, and a bare sweep of it, still ask: those wipe every
+		// process's scratch state rather than one named target.
+		{"tmp root", "rm -rf /tmp", true, TargetOutsideWorkspace},
+		{"tmp root slash", "rm -rf /tmp/", true, TargetOutsideWorkspace},
+		{"tmp root glob", "rm -rf /tmp/*", true, TargetOutsideWorkspace},
+		{"tmp root double glob", "rm -rf /tmp/**", true, TargetOutsideWorkspace},
+		{"tmp glob then path", "rm -rf /tmp/*/cache", true, TargetOutsideWorkspace},
+		{"var tmp root", "rm -rf /var/tmp", true, TargetOutsideWorkspace},
+		{"tmpdir root", "rm -rf $TMPDIR", true, TargetOutsideWorkspace},
+		{"tmpdir root glob", "rm -rf $TMPDIR/*", true, TargetOutsideWorkspace},
+		{"mac tmpdir root", "rm -rf /var/folders/zz/9k1n_c/T", true, TargetOutsideWorkspace},
+		// Not a temp dir despite the name, and traversal out of one.
+		{"tmp lookalike sibling", "rm -rf /tmpfoo/bar", true, TargetOutsideWorkspace},
+		{"var folders cache not temp", "rm -rf /var/folders/zz/9k1n_c/C/x", true, TargetOutsideWorkspace},
+		{"tmp traversal escapes", "rm -rf /tmp/../etc", true, TargetOutsideWorkspace},
+		{"tmp traversal to root", "rm -rf /tmp/..", true, TargetOutsideWorkspace},
+		// The most severe operand wins, so one temp path never launders another.
+		{"tmp plus home", "rm -rf /tmp/scratch ~", true, TargetSensitive},
+		{"tmp plus outside", "rm -rf /tmp/scratch ~/.cache/x", true, TargetOutsideWorkspace},
+		{"tmp plus local", "rm -rf /tmp/scratch node_modules", true, TargetCwdRelative},
 
 		// Everyday operations — MUST NOT be flagged (no false positives).
 		{"node_modules", "rm -rf node_modules", true, TargetCwdRelative},
@@ -265,7 +302,7 @@ func TestChmodFacts(t *testing.T) {
 		{"a+rwx home", "chmod -R a+rwx $HOME", true, TargetSensitive},
 		// World-writable elsewhere.
 		{"777 etc passwd", "chmod 777 /etc/passwd", true, TargetOutsideWorkspace},
-		{"666 tmp", "chmod 666 /tmp/x", true, TargetOutsideWorkspace},
+		{"666 tmp", "chmod 666 /tmp/x", true, TargetTemp},
 		{"777 local file", "chmod 777 ./script.sh", true, TargetCwdRelative},
 		{"o+w local", "chmod o+w config.yaml", true, TargetCwdRelative},
 		{"combined flags then mode", "chmod -Rv 777 build", true, TargetCwdRelative},

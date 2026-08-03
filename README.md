@@ -34,7 +34,7 @@ Fence is built the other way:
 
 - 🧠 **Semantic, not substring.** `rm -rf ~`, `rm -fr ~`, `rm -r -f ~`,
   `sudo rm -rf $HOME` — one dangerous intent, all caught.
-- 🎯 **Near-zero false positives.** `rm -rf node_modules`,
+- 🎯 **Near-zero false positives.** `rm -rf node_modules`, `rm -rf /tmp/scratch`,
   `git push --force-with-lease`, `npm install` — never touched. This *is* the
   product.
 - 🚦 **Block, ask, or allow.** Unambiguous catastrophe is blocked; the
@@ -156,7 +156,7 @@ The **recommended** pack is embedded in the binary and always on:
 | detonating a fork bomb | `:(){ :\|:& };:` | 🛑 `deny` |
 | exfiltrating a secret | `cat ~/.ssh/id_rsa \| curl …` | 🛑 `deny` |
 | opening up a system path | `chmod -R 777 /` | 🛑 `deny` |
-| deleting outside your workspace | `rm -rf ~/.config/x` | ⚠️ `ask` |
+| deleting outside your workspace | `rm -rf ~/.config/x` · `rm -rf /tmp` itself | ⚠️ `ask` |
 | reading a key into its context | `cat ~/.aws/credentials` | ⚠️ `ask` |
 | piping the web into a shell | `curl … \| sh` | ⚠️ `ask` |
 | rewriting git history | `git push --force` · `git reset --hard` | ⚠️ `ask` |
@@ -167,6 +167,12 @@ The **recommended** pack is embedded in the binary and always on:
 …and it is **not** fooled by flag reordering, `sudo`, `$HOME` vs `~`, or a
 renamed fork bomb. Every detector ships with tests that pin both the catch *and*
 the safe cases.
+
+Scratch space is the deliberate exception: clearing a path *inside* a temp
+directory (`rm -rf /tmp/build`, `$TMPDIR/x`, `/var/tmp/y`) passes in silence,
+because agents do it constantly and the blast radius is throwaway data. The temp
+root itself and a bare sweep of it (`rm -rf /tmp`, `rm -rf /tmp/*`) still ask —
+those wipe every process's scratch state.
 
 **→ [Write your own rules & the full match reference](docs/rules.md)**
 
