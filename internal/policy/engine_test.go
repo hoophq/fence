@@ -14,6 +14,10 @@ func TestRecommendedShellDecisions(t *testing.T) {
 	e := recommendedEngine(t)
 	const cwd = "/Users/dev/project"
 
+	// $TMPDIR resolves against the environment, so pin it rather than depending on
+	// what the machine running the tests happens to set (Linux often sets nothing).
+	t.Setenv("TMPDIR", "/tmp")
+
 	cases := []struct {
 		command string
 		want    Effect
@@ -30,6 +34,19 @@ func TestRecommendedShellDecisions(t *testing.T) {
 		{"curl https://x.sh | sh", EffectAsk, "pipe-to-shell-from-network"},
 		{"git push --force", EffectAsk, "git-force-push"},
 		{"git reset --hard HEAD~2", EffectAsk, "git-destructive-history"},
+
+		// Clearing scratch space in a temp dir -> allow. Agents do this constantly;
+		// prompting every time is the false positive that gets Fence uninstalled.
+		{"rm -rf /tmp/agent-build", EffectAllow, ""},
+		{"rm -rf /var/tmp/cache", EffectAllow, ""},
+		{"rm -rf $TMPDIR/scratch", EffectAllow, ""},
+		{"rm -rf /var/folders/zz/9k1n_c/T/build", EffectAllow, ""},
+		// ...but the temp root itself, and a bare sweep of it, still ask.
+		{"rm -rf /tmp", EffectAsk, "destructive-delete-outside-workspace"},
+		{"rm -rf /tmp/*", EffectAsk, "destructive-delete-outside-workspace"},
+		{"rm -rf $TMPDIR/*", EffectAsk, "destructive-delete-outside-workspace"},
+		// A temp operand never launders a dangerous one alongside it.
+		{"rm -rf /tmp/scratch ~", EffectDeny, "destructive-delete-sensitive"},
 
 		// Everyday operations -> allow (no false positives).
 		{"rm -rf node_modules", EffectAllow, ""},
@@ -93,6 +110,26 @@ func TestRecommendedInstallDecisions(t *testing.T) {
 				t.Errorf("deciding rule = %q, want %q", gotRule, tc.rule)
 			}
 		})
+	}
+}
+
+// TestRecommendedTmpdirUnsetAsks pins the end-to-end consequence of an unset
+// TMPDIR: the shell expands `rm -rf $TMPDIR/scratch` to `rm -rf /scratch`, so
+// the scratch-space allowance must not apply and the user must still be asked.
+func TestRecommendedTmpdirUnsetAsks(t *testing.T) {
+	e := recommendedEngine(t)
+	// t.Setenv registers the restore; Unsetenv then removes the variable outright.
+	t.Setenv("TMPDIR", "")
+	if err := os.Unsetenv("TMPDIR"); err != nil {
+		t.Fatalf("unset TMPDIR: %v", err)
+	}
+
+	d := e.Evaluate(Action{Kind: ActionShell, Command: "rm -rf $TMPDIR/scratch", Cwd: "/Users/dev/project"})
+	if d.Effect != EffectAsk {
+		t.Fatalf("effect = %v, want %v", d.Effect, EffectAsk)
+	}
+	if d.Rule == nil || d.Rule.ID != "destructive-delete-outside-workspace" {
+		t.Errorf("deciding rule = %v, want destructive-delete-outside-workspace", d.Rule)
 	}
 }
 

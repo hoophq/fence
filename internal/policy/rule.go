@@ -63,9 +63,9 @@ type Match struct {
 // ShellMatch matches against facts produced by the shell analyzer.
 type ShellMatch struct {
 	RecursiveDelete    bool     `yaml:"recursive_delete,omitempty"`
-	DeleteTarget       string   `yaml:"delete_target,omitempty"` // sensitive|outside_workspace|any
+	DeleteTarget       string   `yaml:"delete_target,omitempty"` // sensitive|outside_workspace|temp|any
 	ChmodWorldWritable bool     `yaml:"chmod_world_writable,omitempty"`
-	ChmodTarget        string   `yaml:"chmod_target,omitempty"` // sensitive|outside_workspace|any
+	ChmodTarget        string   `yaml:"chmod_target,omitempty"` // sensitive|outside_workspace|temp|any
 	BlockDeviceWrite   bool     `yaml:"block_device_write,omitempty"`
 	ForcePush          bool     `yaml:"force_push,omitempty"`
 	HistoryRewrite     bool     `yaml:"history_rewrite,omitempty"`
@@ -137,7 +137,7 @@ func (r *Rule) compile() error {
 
 func validateTargetSpec(ruleID, field, spec string) error {
 	switch spec {
-	case "", "sensitive", "outside_workspace", "any":
+	case "", "sensitive", "outside_workspace", "temp", "any":
 		return nil
 	default:
 		return fmt.Errorf("rule %q has invalid %s %q", ruleID, field, spec)

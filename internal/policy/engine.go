@@ -234,7 +234,7 @@ func matchShell(m *ShellMatch, a *shell.Analysis) bool {
 }
 
 // targetMatches reports whether a path-severity spec
-// (sensitive|outside_workspace|any) is satisfied by the analyzed target.
+// (sensitive|outside_workspace|temp|any) is satisfied by the analyzed target.
 // Unknown specs are rejected at load time, so they pass here.
 func targetMatches(spec string, t shell.DeleteTarget) bool {
 	switch spec {
@@ -244,6 +244,8 @@ func targetMatches(spec string, t shell.DeleteTarget) bool {
 		return t == shell.TargetSensitive
 	case "outside_workspace":
 		return t == shell.TargetOutsideWorkspace
+	case "temp":
+		return t == shell.TargetTemp
 	}
 	return true
 }

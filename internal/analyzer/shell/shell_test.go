@@ -1,9 +1,16 @@
 package shell
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestRecursiveDeleteClassification(t *testing.T) {
 	const cwd = "/Users/dev/project"
+
+	// $TMPDIR is resolved against the environment, so pin it rather than
+	// inheriting whatever the machine running the tests happens to have.
+	t.Setenv("TMPDIR", "/tmp")
 
 	cases := []struct {
 		name      string
@@ -29,8 +36,45 @@ func TestRecursiveDeleteClassification(t *testing.T) {
 
 		// Outside the workspace but not a sensitive root — should ask, not deny.
 		{"home subdir", "rm -rf ~/.cache/thing", true, TargetOutsideWorkspace},
-		{"tmp", "rm -rf /tmp/scratch", true, TargetOutsideWorkspace},
 		{"parent escape", "rm -rf ../sibling", true, TargetOutsideWorkspace},
+
+		// Scratch space inside a temp dir — MUST NOT be flagged. Agents create and
+		// clear these constantly and the blast radius is throwaway data.
+		{"tmp subdir", "rm -rf /tmp/scratch", true, TargetTemp},
+		{"tmp nested", "rm -rf /tmp/agent/build/out", true, TargetTemp},
+		{"tmp trailing slash", "rm -rf /tmp/scratch/", true, TargetTemp},
+		{"tmp prefixed glob", "rm -rf /tmp/build-*", true, TargetTemp},
+		{"tmp redundant separators", "rm -rf /tmp//agent/./out", true, TargetTemp},
+		{"var tmp", "rm -rf /var/tmp/cache", true, TargetTemp},
+		{"private tmp", "rm -rf /private/tmp/scratch", true, TargetTemp},
+		{"private var tmp", "rm -rf /private/var/tmp/scratch", true, TargetTemp},
+		{"mac tmpdir folders", "rm -rf /var/folders/zz/9k1n_c/T/build", true, TargetTemp},
+		{"mac tmpdir folders private", "rm -rf /private/var/folders/zz/9k1n_c/T/build", true, TargetTemp},
+		{"tmpdir var", "rm -rf $TMPDIR/scratch", true, TargetTemp},
+		{"tmpdir var braces", "rm -rf ${TMPDIR}/scratch", true, TargetTemp},
+		{"tmpdir var quoted", "rm -rf \"$TMPDIR\"/scratch", true, TargetTemp},
+		{"sudo tmp", "sudo rm -rf /tmp/scratch", true, TargetTemp},
+
+		// The temp root ITSELF, and a bare sweep of it, still ask: those wipe every
+		// process's scratch state rather than one named target.
+		{"tmp root", "rm -rf /tmp", true, TargetOutsideWorkspace},
+		{"tmp root slash", "rm -rf /tmp/", true, TargetOutsideWorkspace},
+		{"tmp root glob", "rm -rf /tmp/*", true, TargetOutsideWorkspace},
+		{"tmp root double glob", "rm -rf /tmp/**", true, TargetOutsideWorkspace},
+		{"tmp glob then path", "rm -rf /tmp/*/cache", true, TargetOutsideWorkspace},
+		{"var tmp root", "rm -rf /var/tmp", true, TargetOutsideWorkspace},
+		{"tmpdir root", "rm -rf $TMPDIR", true, TargetOutsideWorkspace},
+		{"tmpdir root glob", "rm -rf $TMPDIR/*", true, TargetOutsideWorkspace},
+		{"mac tmpdir root", "rm -rf /var/folders/zz/9k1n_c/T", true, TargetOutsideWorkspace},
+		// Not a temp dir despite the name, and traversal out of one.
+		{"tmp lookalike sibling", "rm -rf /tmpfoo/bar", true, TargetOutsideWorkspace},
+		{"var folders cache not temp", "rm -rf /var/folders/zz/9k1n_c/C/x", true, TargetOutsideWorkspace},
+		{"tmp traversal escapes", "rm -rf /tmp/../etc", true, TargetOutsideWorkspace},
+		{"tmp traversal to root", "rm -rf /tmp/..", true, TargetOutsideWorkspace},
+		// The most severe operand wins, so one temp path never launders another.
+		{"tmp plus home", "rm -rf /tmp/scratch ~", true, TargetSensitive},
+		{"tmp plus outside", "rm -rf /tmp/scratch ~/.cache/x", true, TargetOutsideWorkspace},
+		{"tmp plus local", "rm -rf /tmp/scratch node_modules", true, TargetCwdRelative},
 
 		// Everyday operations — MUST NOT be flagged (no false positives).
 		{"node_modules", "rm -rf node_modules", true, TargetCwdRelative},
@@ -52,6 +96,96 @@ func TestRecursiveDeleteClassification(t *testing.T) {
 			}
 			if a.RecursiveDelete != tc.recursive {
 				t.Errorf("RecursiveDelete = %v, want %v", a.RecursiveDelete, tc.recursive)
+			}
+			if a.DeleteTarget != tc.target {
+				t.Errorf("DeleteTarget = %v, want %v", a.DeleteTarget, tc.target)
+			}
+		})
+	}
+}
+
+// TestTmpdirResolution pins the fail-closed handling of $TMPDIR. Trusting the
+// spelling would be a hole: with TMPDIR unset the shell expands
+// `rm -rf $TMPDIR/scratch` to `rm -rf /scratch`, which is not scratch space at
+// all, so anything we cannot resolve to a real temp directory must still prompt.
+func TestTmpdirResolution(t *testing.T) {
+	const cwd = "/Users/dev/project"
+
+	cases := []struct {
+		name    string
+		tmpdir  string
+		setEnv  bool
+		command string
+		target  DeleteTarget
+	}{
+		{"set to tmp", "/tmp", true, "rm -rf $TMPDIR/scratch", TargetTemp},
+		{"set with trailing slash", "/tmp/", true, "rm -rf $TMPDIR/scratch", TargetTemp},
+		{"set to mac per-user temp", "/var/folders/zz/9k1n_c/T", true, "rm -rf $TMPDIR/build", TargetTemp},
+		// Unset, empty, or relative: unresolvable, so ask rather than allow.
+		{"unset", "", false, "rm -rf $TMPDIR/scratch", TargetOutsideWorkspace},
+		{"empty", "", true, "rm -rf $TMPDIR/scratch", TargetOutsideWorkspace},
+		{"relative", "relative/tmp", true, "rm -rf $TMPDIR/scratch", TargetOutsideWorkspace},
+		// Pointing somewhere that is not a temp directory does not make it one.
+		{"not a temp dir", "/Users/dev/scratch", true, "rm -rf $TMPDIR/x", TargetOutsideWorkspace},
+		// Root itself stays the most severe answer however we get there.
+		{"tmpdir is root", "/", true, "rm -rf $TMPDIR", TargetSensitive},
+		// A different variable that merely starts with the same letters.
+		{"lookalike variable", "/tmp", true, "rm -rf $TMPDIRX/scratch", TargetOutsideWorkspace},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.setEnv {
+				t.Setenv("TMPDIR", tc.tmpdir)
+			} else {
+				// t.Setenv restores the previous value (including absence) on cleanup.
+				t.Setenv("TMPDIR", "")
+				if err := os.Unsetenv("TMPDIR"); err != nil {
+					t.Fatalf("unset TMPDIR: %v", err)
+				}
+			}
+			a := Analyze(tc.command, cwd)
+			if !a.Parsed {
+				t.Fatalf("command did not parse: %q", tc.command)
+			}
+			if a.DeleteTarget != tc.target {
+				t.Errorf("DeleteTarget = %v, want %v", a.DeleteTarget, tc.target)
+			}
+		})
+	}
+}
+
+// TestWorkspaceInsideTempDir pins the ordering between the temp and
+// workspace-local tiers. temp ranks below cwd-relative on the severity scale, so
+// a project that happens to live under /tmp must classify its own files as
+// workspace-local — otherwise a pack that opts into `delete_target: temp` would
+// see the workspace's own deletes as scratch.
+func TestWorkspaceInsideTempDir(t *testing.T) {
+	t.Setenv("TMPDIR", "/tmp")
+	const cwd = "/tmp/myproject"
+
+	cases := []struct {
+		name    string
+		command string
+		target  DeleteTarget
+	}{
+		// Inside the workspace: workspace-local, even though it is also under /tmp.
+		{"workspace subdir", "rm -rf /tmp/myproject/dist", TargetCwdRelative},
+		{"workspace itself", "rm -rf /tmp/myproject", TargetCwdRelative},
+		{"workspace relative", "rm -rf dist", TargetCwdRelative},
+		// A sibling under the same temp root is not part of the workspace, so it
+		// falls back to scratch space.
+		{"sibling in temp", "rm -rf /tmp/other-agent", TargetTemp},
+		// The temp root and a bare sweep of it still ask, workspace or not.
+		{"temp root", "rm -rf /tmp", TargetOutsideWorkspace},
+		{"temp root sweep", "rm -rf /tmp/*", TargetOutsideWorkspace},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Analyze(tc.command, cwd)
+			if !a.Parsed {
+				t.Fatalf("command did not parse: %q", tc.command)
 			}
 			if a.DeleteTarget != tc.target {
 				t.Errorf("DeleteTarget = %v, want %v", a.DeleteTarget, tc.target)
@@ -265,7 +399,7 @@ func TestChmodFacts(t *testing.T) {
 		{"a+rwx home", "chmod -R a+rwx $HOME", true, TargetSensitive},
 		// World-writable elsewhere.
 		{"777 etc passwd", "chmod 777 /etc/passwd", true, TargetOutsideWorkspace},
-		{"666 tmp", "chmod 666 /tmp/x", true, TargetOutsideWorkspace},
+		{"666 tmp", "chmod 666 /tmp/x", true, TargetTemp},
 		{"777 local file", "chmod 777 ./script.sh", true, TargetCwdRelative},
 		{"o+w local", "chmod o+w config.yaml", true, TargetCwdRelative},
 		{"combined flags then mode", "chmod -Rv 777 build", true, TargetCwdRelative},
